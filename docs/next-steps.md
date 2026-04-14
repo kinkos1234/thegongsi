@@ -3,7 +3,8 @@
 ## 확정됨
 
 - 포지션: DART-native AI 주식 리서치 터미널, OSS, 한국어 우선 ([positioning.md](positioning.md))
-- 이름: `comad-stock` (변경 여지 있음)
+- 이름: `comad-stock` (확정)
+- MVP 스코프: KOSPI 200 우선, 이후 코스닥·해외 확장
 - 구조: comad-world 독립 자매 레포
 - 두 북극성: 기술적 완성도 + Fey급 UI/UX
 
@@ -54,6 +55,5 @@
 
 ## 오픈 질문
 
-- 이름 `comad-stock` 확정? 또는 한국어 이름 (예: `공시경`, `장부`, `Gongsi`)?
-- MVP 스코프: KOSPI 200만 시작 vs 전 종목?
 - 첫 공개 시기 목표 (Show HN / GeekNews)?
+- hosted 버전 론칭 시점?
