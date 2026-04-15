@@ -7,6 +7,14 @@ import { DisclosureRow } from "./DisclosureRow";
 const PAGE_SIZE = 20;
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888";
 
+const SEV_LABEL: Record<string, string> = {
+  all: "전체",
+  high: "고",
+  med: "중",
+  low: "저",
+  uncertain: "불명",
+};
+
 export function DisclosureList({ ticker, initial }: { ticker: string; initial: Disclosure[] }) {
   // initial은 서버에서 처음 가져온 첫 페이지
   const [page, setPage] = useState(0);
@@ -51,13 +59,14 @@ export function DisclosureList({ ticker, initial }: { ticker: string; initial: D
                 setPage(0);
                 setSeverity(s);
               }}
-              className={`mono text-[11px] px-2 py-1 uppercase tracking-wider transition-colors ${
+              className={`text-[12px] px-2 py-1 tracking-wider transition-colors ${
                 severity === s
                   ? "text-accent border-b border-accent"
                   : "text-fg-3 hover:text-fg-2"
               }`}
+              title={s}
             >
-              {s === "all" ? "all" : s}
+              {SEV_LABEL[s]}
             </button>
           ))}
         </div>
@@ -77,7 +86,7 @@ export function DisclosureList({ ticker, initial }: { ticker: string; initial: D
       {!loading && items.length === 0 && (
         <p className="py-12 text-fg-3">
           공시 데이터 없음.
-          {severity !== "all" ? ` ('${severity}' 필터 해제해보세요)` : " DART 수집 실행 후 다시 확인하세요."}
+          {severity !== "all" ? ` ('${SEV_LABEL[severity]}' 필터 해제해보세요)` : " DART 수집 실행 후 다시 확인하세요."}
         </p>
       )}
 
