@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +9,18 @@ from app.database import get_db
 from app.models.tables import User, WatchListItem
 from app.routers import get_current_user
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _backfill_task(ticker: str, days: int):
+    """watchlist 추가 시 백그라운드 실행 — DART 공시 N일치 + anomaly scan."""
+    from app.services.collectors.dart import backfill_ticker
+    try:
+        result = await backfill_ticker(ticker, days=days)
+        logger.info(f"watchlist backfill {ticker}: {result}")
+    except Exception as e:
+        logger.exception(f"watchlist backfill {ticker} failed: {e}")
 
 
 class AddRequest(BaseModel):
@@ -21,7 +34,12 @@ async def list_watchlist(user: User = Depends(get_current_user), db: AsyncSessio
 
 
 @router.post("/")
-async def add_watchlist(req: AddRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def add_watchlist(
+    req: AddRequest,
+    background: BackgroundTasks,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     existing = await db.execute(
         select(WatchListItem).where(WatchListItem.user_id == user.id, WatchListItem.ticker == req.ticker)
     )
@@ -30,7 +48,11 @@ async def add_watchlist(req: AddRequest, user: User = Depends(get_current_user),
     item = WatchListItem(user_id=user.id, ticker=req.ticker)
     db.add(item)
     await db.commit()
-    return {"ticker": req.ticker, "status": "added"}
+
+    # 백그라운드: 최근 90일 공시 백필 + anomaly scan (blocking 없이)
+    background.add_task(_backfill_task, req.ticker, 90)
+
+    return {"ticker": req.ticker, "status": "added", "backfill": "queued_90d"}
 
 
 @router.delete("/{ticker}")

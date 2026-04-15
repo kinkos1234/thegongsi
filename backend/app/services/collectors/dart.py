@@ -52,6 +52,116 @@ def _fetch_filings_sync(bgn_de: str, end_de: str) -> list[dict]:
     return rows
 
 
+def _fetch_by_corp_sync(corp_code: str, bgn_de: str, end_de: str) -> list[dict]:
+    """특정 corp_code의 공시만 조회."""
+    dart = _configure_dart()
+    search = dart.filings.search(
+        corp_code=corp_code,
+        bgn_de=bgn_de,
+        end_de=end_de,
+        page_count=100,
+    )
+    rows = []
+    for f in search:
+        rows.append({
+            "rcept_no": f.rcept_no,
+            "corp_code": f.corp_code,
+            "ticker": (getattr(f, "stock_code", None) or "").strip(),
+            "report_nm": f.report_nm,
+            "rcept_dt": f.rcept_dt[:4] + "-" + f.rcept_dt[4:6] + "-" + f.rcept_dt[6:8],
+            "raw_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={f.rcept_no}",
+        })
+    return rows
+
+
+async def backfill_ticker(ticker: str, days: int = 90) -> dict:
+    """watchlist 신규 추가 종목 백필.
+
+    Company.corp_code 필요. 없으면 dart-fss corp_list로 찾아서 Company.upsert.
+    """
+    if not settings.dart_api_key:
+        return {"status": "no_api_key"}
+
+    import asyncio
+    from sqlalchemy import select
+    from app.database import async_session
+    from app.models.tables import Company, Disclosure
+
+    # corp_code 조회
+    async with async_session() as db:
+        res = await db.execute(select(Company).where(Company.ticker == ticker))
+        company = res.scalar_one_or_none()
+
+    loop = asyncio.get_event_loop()
+
+    if not company or not company.corp_code:
+        # dart corp_list에서 검색
+        def _find_corp():
+            dart = _configure_dart()
+            corp_list = dart.get_corp_list()
+            matches = [c for c in corp_list if getattr(c, "stock_code", None) == ticker]
+            return matches[0] if matches else None
+
+        corp = await loop.run_in_executor(None, _find_corp)
+        if not corp:
+            return {"status": "not_listed", "ticker": ticker}
+
+        async with async_session() as db:
+            if company:
+                company.corp_code = corp.corp_code
+                company.name_ko = corp.corp_name
+            else:
+                db.add(Company(
+                    ticker=ticker,
+                    corp_code=corp.corp_code,
+                    name_ko=corp.corp_name,
+                    market="KOSPI",  # 정확한 시장 구분은 추가 API 필요, Phase 2
+                ))
+            await db.commit()
+        corp_code = corp.corp_code
+    else:
+        corp_code = company.corp_code
+
+    # 기간 계산
+    now = datetime.now(KST)
+    end_de = now.strftime("%Y%m%d")
+    bgn_de = (now - timedelta(days=days)).strftime("%Y%m%d")
+
+    try:
+        rows = await loop.run_in_executor(None, _fetch_by_corp_sync, corp_code, bgn_de, end_de)
+    except Exception as e:
+        logger.exception(f"backfill {ticker} failed")
+        return {"status": "error", "error": str(e)}
+
+    inserted = 0
+    async with async_session() as db:
+        for row in rows:
+            if not row["ticker"]:
+                row["ticker"] = ticker  # corp_code 기반 검색이라 stock_code 비어있을 수 있음
+            existing = await db.execute(select(Disclosure).where(Disclosure.rcept_no == row["rcept_no"]))
+            if existing.scalar_one_or_none():
+                continue
+            db.add(Disclosure(**row))
+            inserted += 1
+        await db.commit()
+
+    logger.info(f"Backfill {ticker} ({corp_code}): {inserted} new, {len(rows)} total in {days}d")
+
+    # anomaly scan 연쇄
+    from app.services.anomaly.detector import scan_new_disclosures
+    anomaly = await scan_new_disclosures()
+
+    return {
+        "status": "ok",
+        "ticker": ticker,
+        "corp_code": corp_code,
+        "days": days,
+        "fetched": len(rows),
+        "inserted": inserted,
+        "anomaly": anomaly,
+    }
+
+
 async def fetch_recent_disclosures(days: int = 1) -> dict:
     """최근 N일 공시 수집 → Disclosure upsert.
 
