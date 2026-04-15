@@ -1,0 +1,90 @@
+{
+  "timestamp": "2026-04-15T10:35:30.506256",
+  "total": 8,
+  "passed": 8,
+  "pass_rate": 1.0,
+  "avg_recall": 1.0,
+  "avg_precision": 1.0,
+  "results": [
+    {
+      "id": "samsung-leader",
+      "category": "governance",
+      "recall": 1.0,
+      "precision": 1.0,
+      "min_recall": 1.0,
+      "min_precision": 1.0,
+      "passed": true,
+      "cypher": ""
+    },
+    {
+      "id": "sk-leader",
+      "category": "governance",
+      "recall": 1.0,
+      "precision": 1.0,
+      "min_recall": 1.0,
+      "min_precision": 1.0,
+      "passed": true,
+      "cypher": ""
+    },
+    {
+      "id": "leads-any",
+      "category": "governance",
+      "recall": 1.0,
+      "precision": 1.0,
+      "min_recall": 1.0,
+      "min_precision": 0.5,
+      "passed": true,
+      "cypher": ""
+    },
+    {
+      "id": "hbm-suppliers",
+      "category": "supply_chain",
+      "recall": 1.0,
+      "precision": 1.0,
+      "min_recall": 0.8,
+      "min_precision": 0.7,
+      "passed": true,
+      "cypher": ""
+    },
+    {
+      "id": "samsung-suppliers",
+      "category": "supply_chain",
+      "recall": 1.0,
+      "precision": 1.0,
+      "min_recall": 0.6,
+      "min_precision": 0.6,
+      "passed": true,
+      "cypher": ""
+    },
+    {
+      "id": "hbm-chain",
+      "category": "supply_chain",
+      "recall": 1.0,
+      "precision": 1.0,
+      "min_recall": 0.7,
+      "min_precision": 0.5,
+      "passed": true,
+      "cypher": ""
+    },
+    {
+      "id": "samsung-rivals",
+      "category": "competitor",
+      "recall": 1.0,
+      "precision": 1.0,
+      "min_recall": 1.0,
+      "min_precision": 0.8,
+      "passed": true,
+      "cypher": ""
+    },
+    {
+      "id": "memory-duopoly",
+      "category": "competitor",
+      "recall": 1.0,
+      "precision": 1.0,
+      "min_recall": 1.0,
+      "min_precision": 0.9,
+      "passed": true,
+      "cypher": ""
+    }
+  ]
+}

@@ -62,23 +62,27 @@ python scripts/scheduler.py --once --alerts
 ## 프로젝트 구조
 
 ```
-comad-stock/
-├── PRD/                    # PRD/데이터모델/Phase/스펙/재사용맵
+thegongsi/
+├── PRD/                    # PRD · 데이터모델 · Phase · 재사용맵 · 리뷰
 ├── docs/
 │   ├── DESIGN.md           # Fey급 UI 시스템
-│   ├── positioning.md
-│   └── next-steps.md
-├── research/
-│   └── market-landscape.md
+│   ├── GRAPH_PIPELINE.md   # 5만 엣지 로드맵
+│   ├── DEMO_ASSETS.md      # 스크린샷 캡처 가이드
+│   └── launch/             # Show HN + dev.to 포스팅 초안
+├── bench/                  # 20개 gold-query + recall/precision 러너
 ├── backend/                # FastAPI + 수집기 + GraphRAG + DD 메모
-└── frontend/               # Next.js 16 + Tailwind 4
+└── frontend/               # Next.js 16 + Tailwind 4 + Recharts
 ```
 
 ## 로드맵
 
-- **Phase 1 (MVP):** DART 수집, 이상징후, DD 메모, GraphRAG Q&A, KOSPI 200 대시보드
-- **Phase 2:** 매직링크 인증, 실적콜 transcript, 백테스트 이식, Managed hosted
-- **Phase 3:** 기관 API, 포트폴리오 리밸런싱 AI, 소형주 IPO 리서치
+- **Phase 1 (α 현재):** DART 수집·이상 공시, DD 메모 AI, Ask (multi-tool retriever), KOSPI/KOSDAQ 대시보드, BYOK
+- **Phase 2:** 매직링크 인증, DART 본문 HTML entity extraction (5만 엣지 목표), 실적 콜 transcript, Managed hosted
+- **Phase 3:** 기관 API, 포트폴리오 리밸런싱, 소형주 IPO 리서치, Redis/HA 스케일
+
+## 런칭 체크리스트
+
+[LAUNCH.md](LAUNCH.md) — Day-0 배포 checklist · Show HN 체크리스트 · 30일 성공 지표.
 
 ## 기여
 
