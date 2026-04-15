@@ -38,9 +38,12 @@ export default function AskPage() {
 
   return (
     <main className="mx-auto max-w-[820px] px-8 py-20">
-      <h1 className="font-serif text-[40px] leading-none tracking-[-0.01em]">GraphRAG Q&amp;A</h1>
+      <p className="mono text-[12px] text-fg-3 uppercase tracking-wider">ASK</p>
+      <h1 className="mt-3 font-serif text-[40px] leading-[1.1] tracking-[-0.01em]">
+        자연어 질의
+      </h1>
       <p className="mt-4 text-[15px] text-fg-2">
-        자연어로 물어보면 Cypher로 변환해 기업 관계 그래프에서 답을 찾습니다.
+        기업 관계 그래프와 DART 공시에서 답을 찾습니다.
       </p>
 
       <form onSubmit={submit} className="mt-12">

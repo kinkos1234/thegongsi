@@ -18,7 +18,7 @@ export default function Home() {
 
         <div className="mt-16 flex items-center gap-6 text-[14px]">
           <a href="/ask" className="mono border-b border-accent text-accent hover:bg-accent-dim hover:text-fg px-1 py-0.5 transition-colors">
-            try Q&amp;A →
+            try ask →
           </a>
           <span className="text-fg-3 mono">MIT · BYOK · self-hostable</span>
         </div>
@@ -52,7 +52,7 @@ export default function Home() {
       <section className="border-t border-border/50">
         <div className="mx-auto max-w-[1080px] px-8 py-24 grid grid-cols-1 md:grid-cols-3 gap-12">
           <Feature label="DART 공시" value="전수 수집 · 한국어 요약 · severity 플래그" />
-          <Feature label="GraphRAG" value="자연어 → Cypher → 한국어 답변 · 2-hop" />
+          <Feature label="Ask" value="자연어 질의 · 그래프 + 공시 hybrid" />
           <Feature label="DD 메모" value="bull / bear / thesis · 버전 히스토리" />
         </div>
       </section>
