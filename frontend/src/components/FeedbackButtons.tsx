@@ -6,47 +6,78 @@ type Target =
   | { kind: "disclosure"; rcept_no: string }
   | { kind: "memo"; memo_version_id: string };
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888";
+
 export function FeedbackButtons({ target }: { target: Target }) {
-  const [sent, setSent] = useState<1 | -1 | null>(null);
+  const [state, setState] = useState<"idle" | "sending" | "ok" | "err">("idle");
+  const [selected, setSelected] = useState<1 | -1 | null>(null);
 
   async function send(rating: 1 | -1) {
-    if (sent) return;
-    setSent(rating);
-    const api = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888";
+    if (state === "sending" || state === "ok") return;
+    setSelected(rating);
+    setState("sending");
     const path = target.kind === "disclosure" ? "disclosure" : "memo";
-    const body = target.kind === "disclosure"
-      ? { rcept_no: target.rcept_no, rating }
-      : { memo_version_id: target.memo_version_id, rating };
+    const body =
+      target.kind === "disclosure"
+        ? { rcept_no: target.rcept_no, rating }
+        : { memo_version_id: target.memo_version_id, rating };
     try {
-      await fetch(`${api}/api/feedback/${path}`, {
+      const r = await fetch(`${API}/api/feedback/${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      setState(r.ok ? "ok" : "err");
     } catch {
-      // 익명 피드백 — 실패해도 사용자 방해 안 함
+      setState("err");
     }
   }
 
+  // 2초 뒤 err 상태 리셋
+  if (state === "err") {
+    setTimeout(() => {
+      setState("idle");
+      setSelected(null);
+    }, 2500);
+  }
+
   return (
-    <div className="flex items-center gap-3 text-[11px] text-fg-3">
+    <div className="flex items-center gap-2 text-[13px] text-fg-3 select-none">
       <button
-        onClick={() => send(1)}
-        disabled={sent !== null}
-        className={`hover:text-accent transition-colors ${sent === 1 ? "text-accent" : ""}`}
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          send(1);
+        }}
+        disabled={state === "sending" || state === "ok"}
+        className={`px-2 py-1 leading-none border border-transparent hover:border-accent/60 hover:text-accent transition-colors disabled:cursor-not-allowed ${
+          selected === 1 ? "text-accent border-accent/60" : ""
+        }`}
         aria-label="유용함"
+        title="유용함"
       >
         ▲
       </button>
       <button
-        onClick={() => send(-1)}
-        disabled={sent !== null}
-        className={`hover:text-sev-high transition-colors ${sent === -1 ? "text-sev-high" : ""}`}
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          send(-1);
+        }}
+        disabled={state === "sending" || state === "ok"}
+        className={`px-2 py-1 leading-none border border-transparent hover:border-sev-high/60 hover:text-sev-high transition-colors disabled:cursor-not-allowed ${
+          selected === -1 ? "text-sev-high border-sev-high/60" : ""
+        }`}
         aria-label="부정확"
+        title="부정확"
       >
         ▼
       </button>
-      {sent && <span className="mono">thanks</span>}
+      {state === "sending" && <span className="mono text-[11px]">보내는 중…</span>}
+      {state === "ok" && <span className="mono text-[11px] text-accent">감사합니다</span>}
+      {state === "err" && <span className="mono text-[11px] text-sev-high">실패, 재시도</span>}
     </div>
   );
 }
