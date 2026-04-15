@@ -54,7 +54,19 @@ def run_scheduler():
         name="Daily DART/KRX collection + alerts",
     )
 
-    logger.info("Scheduler started. Daily run at UTC 21:00 (KST 06:00)")
+    # 매주 월요일 KST 07:00 = UTC 일요일 22:00 — 인덱스 구성원 sync
+    def weekly_index_sync():
+        from scripts.weekly_sync import weekly_sync
+        asyncio.run(weekly_sync(auto_backfill=True))
+
+    scheduler.add_job(
+        weekly_index_sync,
+        CronTrigger(day_of_week="sun", hour=22, minute=0, timezone="UTC"),
+        id="weekly_index_sync",
+        name="Weekly KOSPI 200 + KOSDAQ 150 membership sync + backfill",
+    )
+
+    logger.info("Scheduler started. Daily KST 06:00 + Weekly KST Mon 07:00 (index sync).")
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
