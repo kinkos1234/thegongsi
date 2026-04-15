@@ -130,7 +130,7 @@ export default function WatchlistPage() {
       </form>
 
       {backfilling && (
-        <div className="mt-6 border-l-2 border-accent bg-bg-2 px-4 py-3 flex items-center justify-between">
+        <div className="fixed top-20 right-6 z-50 border-l-2 border-accent bg-bg-2 border border-border/50 px-4 py-3 flex items-center gap-3 shadow-lg">
           <p className="text-[13px] text-fg-2">
             <span className="mono text-accent">{backfilling.ticker}</span> 공시 백필 중…
             {backfilling.count > 0 && (

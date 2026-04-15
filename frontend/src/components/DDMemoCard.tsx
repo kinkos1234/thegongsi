@@ -1,5 +1,6 @@
 import type { DDMemo } from "@/types";
 import { Markdown } from "./Markdown";
+import { FeedbackButtons } from "./FeedbackButtons";
 
 /** LLM이 본문 끝에 자동 삽입하는 '투자자문 아님' disclaimer를 제거.
  *  카드 footer에 표준 문구가 이미 있어 중복이므로. */
@@ -56,10 +57,13 @@ function addBreathingRoom(text: string): string {
 
 export function DDMemoCard({ memo }: { memo: DDMemo }) {
   return (
-    <article className="bg-bg-2 border border-border/50 p-8">
-      <header className="flex items-baseline justify-between border-b border-border/50 pb-4 mb-6">
+    <article className="border-t border-b border-border/50 py-8">
+      <header className="flex items-baseline justify-between mb-6">
         <h2 className="font-serif text-[24px]">DD 메모</h2>
-        <p className="mono text-[12px] text-fg-3">v{memo.version}</p>
+        <div className="flex items-baseline gap-4">
+          <FeedbackButtons target={{ kind: "memo", memo_version_id: memo.version_id }} />
+          <p className="mono text-[12px] text-fg-3">v{memo.version}</p>
+        </div>
       </header>
 
       {/* BULL | BEAR 2-col 상단 + THESIS 전체 너비 하단 (편집자 칼럼 + 결론) */}
@@ -72,8 +76,8 @@ export function DDMemoCard({ memo }: { memo: DDMemo }) {
         <Markdown content={addBreathingRoom(stripInlineDisclaimer(memo.thesis))} tone="serif" />
       </section>
 
-      <p className="mt-8 text-[12px] text-fg-3">
-        ※ 본 메모는 AI가 공시·뉴스만을 근거로 생성한 정보로, 투자자문이 아닙니다.
+      <p className="mt-8 text-[12px] italic text-fg-3">
+        — 본 메모는 AI가 공시·뉴스만을 근거로 생성한 정보로, 투자자문이 아닙니다.
       </p>
     </article>
   );

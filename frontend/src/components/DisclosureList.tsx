@@ -85,8 +85,11 @@ export function DisclosureList({ ticker, initial }: { ticker: string; initial: D
 
       {!loading && items.length === 0 && (
         <p className="py-12 text-fg-3">
-          공시 데이터 없음.
-          {severity !== "all" ? ` ('${SEV_LABEL[severity]}' 필터 해제해보세요)` : " DART 수집 실행 후 다시 확인하세요."}
+          {page > 0
+            ? "마지막 페이지입니다."
+            : severity !== "all"
+              ? `'${SEV_LABEL[severity]}' 심각도 공시 없음. 필터 해제해보세요.`
+              : "공시 데이터 없음. DART 수집 실행 후 다시 확인하세요."}
         </p>
       )}
 

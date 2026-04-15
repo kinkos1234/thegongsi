@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 
 type Point = { d: string; c: number };
@@ -23,7 +24,20 @@ export function Sparkline({ data, up }: { data: Point[]; up: boolean }) {
     );
   }
 
-  const color = up ? "var(--color-accent)" : "var(--color-down)";
+  // CSS var는 Recharts SVG attribute에 바로 안 먹을 수 있어 실 computed 값 resolution.
+  // theme 토글 시 data-theme 변경 감지해 rerender.
+  const [theme, setTheme] = useState(0);
+  useEffect(() => {
+    const obs = new MutationObserver(() => setTheme((t) => t + 1));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
+  }, []);
+  const rootStyle =
+    typeof window !== "undefined" ? getComputedStyle(document.documentElement) : null;
+  const accentColor = rootStyle?.getPropertyValue("--color-accent").trim() || "#4ADE80";
+  const downColor = rootStyle?.getPropertyValue("--color-down").trim() || "#A3A3A3";
+  const color = up ? accentColor : downColor;
+  void theme; // force re-read on theme change
   return (
     <div className="h-[160px] w-full">
       <ResponsiveContainer width="100%" height="100%">

@@ -25,16 +25,57 @@ class SetKeyRequest(BaseModel):
     openai_key: str | None = None
 
 
+def _mask(encrypted: str | None) -> str | None:
+    """암호화된 키를 복호화해서 뒤 4자리만 표시. 실패 시 '설정됨'."""
+    if not encrypted:
+        return None
+    try:
+        if crypto.is_configured():
+            decrypted = crypto.decrypt(encrypted)
+            if len(decrypted) >= 8:
+                return f"{decrypted[:7]}…{decrypted[-4:]}"
+    except Exception:
+        pass
+    return "설정됨"
+
+
 @router.get("/status")
 async def status(user: User = Depends(get_current_user)):
+    from app.config import settings
     from app.services.quota import get_usage_summary
     usage = await get_usage_summary(user.id)
+    is_admin = (user.email or "").lower() in settings.admin_email_list
     return {
         "configured_server_side": crypto.is_configured(),
         "anthropic": bool(user.byok_anthropic_key),
         "openai": bool(user.byok_openai_key),
+        "anthropic_hint": _mask(user.byok_anthropic_key),
+        "openai_hint": _mask(user.byok_openai_key),
+        "is_admin": is_admin,
         "server_fallback_usage": usage,
     }
+
+
+class VerifyRequest(BaseModel):
+    anthropic_key: str
+
+
+@router.post("/verify")
+async def verify_key(req: VerifyRequest):
+    """BYOK 저장 전 Anthropic API 유효성 1-token 테스트."""
+    if not req.anthropic_key or not req.anthropic_key.startswith("sk-"):
+        raise HTTPException(status_code=400, detail="유효하지 않은 키 형식")
+    try:
+        from anthropic import AsyncAnthropic
+        client = AsyncAnthropic(api_key=req.anthropic_key)
+        msg = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=1,
+            messages=[{"role": "user", "content": "ok"}],
+        )
+        return {"valid": True, "model": msg.model}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"키 검증 실패: {e}")
 
 
 @router.post("/")

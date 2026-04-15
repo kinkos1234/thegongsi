@@ -1,3 +1,5 @@
+import { HomeSearch } from "@/components/HomeSearch";
+
 export default function Home() {
   return (
     <>
@@ -16,7 +18,9 @@ export default function Home() {
           네이버 증권을 두 세대 앞서, 광고 없이.
         </p>
 
-        <div className="mt-16 flex items-center gap-6 text-[14px]">
+        <HomeSearch />
+
+        <div className="mt-10 flex items-center gap-6 text-[14px]">
           <a href="/ask" className="mono border-b border-accent text-accent hover:bg-accent-dim hover:text-fg px-1 py-0.5 transition-colors">
             try ask →
           </a>

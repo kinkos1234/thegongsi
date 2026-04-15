@@ -32,7 +32,7 @@ export default function AskPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!q.trim() || !token) return;
+    if (!q.trim() || !token || loading) return;  // 중복 submit 방어
     setLoading(true);
     setErr(null);
     try {

@@ -8,7 +8,11 @@ const TOKEN_KEY = "comad_stock_token";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/watchlist";
+  const nextRaw = searchParams.get("next");
+  // 안전한 next: 내부 경로만 허용 (open redirect 방어)
+  const next = nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//")
+    ? nextRaw
+    : "/watchlist";
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

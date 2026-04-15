@@ -4,6 +4,7 @@ import { DisclosureList } from "@/components/DisclosureList";
 import { DDMemoCard } from "@/components/DDMemoCard";
 import { GenerateMemoButton } from "@/components/GenerateMemoButton";
 import { Sparkline } from "@/components/Sparkline";
+import { TodayAnomalies } from "@/components/TodayAnomalies";
 import type { Company, Disclosure, DDMemo, Quote } from "@/types";
 
 async function fetchData(ticker: string): Promise<{
@@ -76,16 +77,21 @@ export default async function CompanyPage({ params }: { params: Promise<{ ticker
   return (
     <main className="mx-auto max-w-[1080px] px-8 py-16">
       <CompanyHeader c={company} />
+      <TodayAnomalies ticker={ticker} />
 
       {data.quote?.series && data.quote.series.length > 0 && (
         <section className="mt-10">
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="mono text-[11px] text-fg-3 uppercase tracking-wider">
+          <div className="mb-3">
+            <h2
+              className="mono text-[11px] text-fg-3 uppercase tracking-wider"
+              title={
+                data.quote.cached
+                  ? `cached ${Math.round(data.quote.age_sec / 60)}m ago`
+                  : "fresh"
+              }
+            >
               최근 {data.quote.series.length}거래일 · 종가
             </h2>
-            <span className="mono text-[11px] text-fg-3">
-              {data.quote.cached ? `cached ${Math.round(data.quote.age_sec / 60)}m` : "fresh"}
-            </span>
           </div>
           <Sparkline data={data.quote.series} up={up} />
         </section>
