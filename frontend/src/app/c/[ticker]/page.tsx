@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { CompanyHeader } from "@/components/CompanyHeader";
-import { DisclosureRow } from "@/components/DisclosureRow";
+import { DisclosureList } from "@/components/DisclosureList";
 import { DDMemoCard } from "@/components/DDMemoCard";
 import { Sparkline } from "@/components/Sparkline";
 import type { Company, Disclosure, DDMemo, Quote } from "@/types";
@@ -33,7 +33,7 @@ async function fetchData(ticker: string): Promise<{
   }
 
   const [disclosures, quote, memo] = await Promise.all([
-    safe<Disclosure[]>(fetch(`${api}/api/disclosures/?ticker=${ticker}`, { cache: "no-store" })),
+    safe<Disclosure[]>(fetch(`${api}/api/disclosures/?ticker=${ticker}&limit=20`, { cache: "no-store" })),
     safe<Quote>(fetch(`${api}/api/quotes/${ticker}`, { cache: "no-store" })),
     safe<DDMemo>(fetch(`${api}/api/memos/${ticker}`, { cache: "no-store" })),
   ]);
@@ -93,15 +93,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ ticker
       <div className="mt-16 grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-16">
         <section>
           <h2 className="font-serif text-[24px] mb-6">공시</h2>
-          <div>
-            {data.disclosures.length === 0 ? (
-              <p className="py-12 text-fg-3">
-                공시 데이터 없음. DART 일일 수집(<span className="mono">scheduler.py --once</span>) 실행 후 다시 확인하세요.
-              </p>
-            ) : (
-              data.disclosures.map((d) => <DisclosureRow key={d.rcept_no} d={d} />)
-            )}
-          </div>
+          <DisclosureList ticker={ticker} initial={data.disclosures} />
         </section>
 
         <aside>
