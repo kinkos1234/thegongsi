@@ -70,11 +70,15 @@ async def sync_disclosures(tickers: Iterable[str] | None = None, limit: int = 50
             if await sync_company(db, t):
                 company_synced += 1
 
-    # Disclosure 노드 + edge upsert
+    # Disclosure 노드 + edge + TimePoint upsert (Bush/Hassabis temporal 1급 시민)
     disclosure_synced = 0
     for d in rows:
         if not d.ticker:
             continue
+        # rcept_dt → year / quarter 계산
+        y = int(d.rcept_dt[:4]) if d.rcept_dt else 0
+        m = int(d.rcept_dt[5:7]) if len(d.rcept_dt) >= 7 else 0
+        q = f"{y}Q{(m - 1) // 3 + 1}" if m else ""
         await run_cypher(
             """
             MERGE (co:Company {ticker: $ticker})
@@ -85,6 +89,10 @@ async def sync_disclosures(tickers: Iterable[str] | None = None, limit: int = 50
                 dis.reason = $reason,
                 dis.raw_url = $raw_url
             MERGE (dis)-[:FILED_BY]->(co)
+            WITH dis
+            MERGE (tp:TimePoint {date: $rcept_dt})
+            SET tp.year = $year, tp.quarter = $quarter
+            MERGE (dis)-[:OCCURRED_AT]->(tp)
             """,
             {
                 "ticker": d.ticker,
@@ -94,6 +102,8 @@ async def sync_disclosures(tickers: Iterable[str] | None = None, limit: int = 50
                 "severity": d.anomaly_severity or "",
                 "reason": (d.anomaly_reason or "")[:300],
                 "raw_url": d.raw_url or "",
+                "year": y,
+                "quarter": q,
             },
         )
         disclosure_synced += 1
