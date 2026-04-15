@@ -46,8 +46,11 @@ cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # DART_API_KEY, ANTHROPIC_API_KEY, NEO4J_* 설정
-python scripts/init_graph.py        # Neo4j 스키마
-python scripts/seed_graph.py        # (선택) HBM 공급망 시드
+
+# ✨ 1회 부트스트랩 — 시장 최근 90일 공시 + 이상 공시 + 그래프 시드
+python scripts/bootstrap.py --seed     # 8~10분 소요, ~2,000 disclosures
+
+# 서버 기동
 python -m uvicorn app.main:app --reload --port 8888
 
 # Frontend
