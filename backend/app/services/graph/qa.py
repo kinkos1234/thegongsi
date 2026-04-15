@@ -176,16 +176,14 @@ TOOL_DISPATCH = {
 }
 
 
-async def ask(question: str, max_hops: int = 6) -> dict:
+async def ask(question: str, user=None, max_hops: int = 6) -> dict:
     """Multi-tool Q&A. Claude가 도구 선택 → 결과 → 최종 합성까지 agentic loop.
 
+    BYOK: user 인자 주어지면 그 사용자의 byok_anthropic_key 사용 (없으면 서버 키).
     max_hops=6: 다중 도구 조합이 필요한 복합 질문(graph+disclosure filter 등) 대응.
     """
-    if not settings.anthropic_api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY required")
-
-    from anthropic import AsyncAnthropic
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    from app.services.llm_client import get_anthropic_client
+    client, _owner = get_anthropic_client(user)
 
     messages: list[dict[str, Any]] = [{"role": "user", "content": question}]
     tool_calls_made: list[dict[str, Any]] = []

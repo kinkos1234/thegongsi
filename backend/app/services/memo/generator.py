@@ -144,16 +144,24 @@ def _validate_citations(text: str, valid_rcept_nos: set[str]) -> tuple[bool, lis
 async def generate_memo(ticker: str, user_id: str | None = None, _retry: int = 0) -> dict:
     """신규 DDMemoVersion 생성.
 
+    BYOK: user_id 제공 + 해당 유저 byok_anthropic_key 등록 → 그 키 사용,
+    없으면 서버 .env ANTHROPIC_API_KEY 사용. 둘 다 없으면 503.
+
     Guardrails:
     - 금지어(목표가·추천) 발견 시 1회 재생성
     - 각주 rcept_no의 fabrication 검증, 발견 시 1회 재생성
     - 재생성 2회 후에도 실패하면 마지막 출력 저장 + warning 반환
     """
-    if not settings.anthropic_api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY required")
+    from sqlalchemy import select
+    from app.models.tables import User
+    from app.services.llm_client import get_anthropic_client
 
-    from anthropic import AsyncAnthropic
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    user_obj = None
+    if user_id:
+        async with async_session() as db:
+            user_obj = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+
+    client, key_owner = get_anthropic_client(user_obj)
 
     async with async_session() as db:
         ctx = await _gather_context(ticker, db)
@@ -221,7 +229,7 @@ async def generate_memo(ticker: str, user_id: str | None = None, _retry: int = 0
         sources += [{"type": "news", "url": n.url} for n in ctx["news"]]
 
         # 감사 3튜플 (Amodei): user_id + key_owner + model
-        key_owner = user_id if user_id else "server"  # BYOK 여부에 따라 분기 (Phase 2 확장)
+        # key_owner 는 상단 get_anthropic_client()가 이미 결정 ('user:<id>' or 'server')
         generated_by = f"claude-sonnet-4-6|key={key_owner}|warn={','.join(warnings) or 'none'}"
 
         version = DDMemoVersion(

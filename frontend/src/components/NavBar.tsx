@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/", label: "home" },
   { href: "/ask", label: "ask" },
   { href: "/watchlist", label: "watchlist" },
+  { href: "/settings", label: "settings" },
 ];
 
 export function NavBar() {
