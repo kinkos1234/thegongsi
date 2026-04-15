@@ -32,12 +32,13 @@ function addBreathingRoom(text: string): string {
     }
     // 인라인 열거 기호 (①~⑳) 앞에 줄바꿈 강제
     let work = line.replace(/\s*([①-⑳])/g, "\n\n$1");
-    // 문장 경계 split (한국어 다양한 종결 + 공백)
+    // 문장 경계 split
     const parts = work.split(/\n\n/);
     const reflowed: string[] = [];
     for (const p of parts) {
-      const sentences = p.split(/(?<=[다요음함까나라]\.)\s+/);
-      // 120자 초과 또는 3문장 이상이면 2문장마다 분할
+      // 문장 끝 패턴 넓게: 한국어 종결(다/요/음/니까/함/까/나/라) + 괄호 닫기 뒤의 '.'
+      // 또는 단순히 마침표+공백 (숫자 소수점 제외 — 앞이 숫자면 무시)
+      const sentences = p.split(/(?<=[다요음함까나라]\.|\)\.|\].)\s+|(?<=[^\d])\.\s+/);
       if (p.length > 120 && sentences.length >= 2) {
         const chunks: string[] = [];
         for (let i = 0; i < sentences.length; i += 2) {
