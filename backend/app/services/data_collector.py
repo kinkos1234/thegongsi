@@ -6,35 +6,24 @@ import logging
 
 from app.services.collectors import dart, krx, news
 from app.services.anomaly import detector
+from app.services.retry import with_retry
 
 logger = logging.getLogger(__name__)
 
 
 async def collect_all() -> dict:
-    result = {}
-    try:
-        result["dart"] = await dart.fetch_recent_disclosures()
-    except Exception as e:
-        logger.exception("DART 수집 실패")
-        result["dart"] = {"error": str(e)}
-
-    try:
-        result["krx"] = await krx.fetch_kospi_quotes()
-    except Exception as e:
-        logger.exception("KRX 수집 실패")
-        result["krx"] = {"error": str(e)}
-
-    try:
-        result["news"] = await news.fetch_news()
-    except Exception as e:
-        logger.exception("뉴스 수집 실패")
-        result["news"] = {"error": str(e)}
-
-    # 신규 공시에 대해 이상징후 스캔 (규칙+LLM)
-    try:
-        result["anomaly"] = await detector.scan_new_disclosures()
-    except Exception as e:
-        logger.exception("이상징후 스캔 실패")
-        result["anomaly"] = {"error": str(e)}
-
+    """DART → KRX → News → anomaly. 각 단계 3회 재시도(exp backoff)."""
+    stages = [
+        ("dart", dart.fetch_recent_disclosures),
+        ("krx", krx.fetch_kospi_quotes),
+        ("news", news.fetch_news),
+        ("anomaly", detector.scan_new_disclosures),
+    ]
+    result: dict = {}
+    for name, fn in stages:
+        outcome = await with_retry(fn, attempts=3, name=name)
+        if isinstance(outcome, Exception):
+            result[name] = {"error": str(outcome)}
+        else:
+            result[name] = outcome
     return result
