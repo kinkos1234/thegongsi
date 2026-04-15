@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Markdown } from "@/components/Markdown";
 
 type ToolCall = { name: string; args: Record<string, unknown>; result_summary: Record<string, unknown> };
 type Answer = {
@@ -106,9 +107,7 @@ export default function AskPage() {
         <section className="mt-16">
           {ans.answer && (
             <div className="mb-10 border-l-2 border-accent pl-6 py-2">
-              <div className="font-serif text-[18px] leading-[1.7] text-fg whitespace-pre-wrap">
-                {ans.answer}
-              </div>
+              <Markdown content={ans.answer} tone="serif" />
             </div>
           )}
           {ans.tools_used && ans.tools_used.length > 0 && (
