@@ -1,10 +1,15 @@
 """DART 공시 수집기.
 
 dart-fss 라이브러리 사용. 증분 수집(rcept_no 기준) + upsert.
-10,000 req/day 한도 — 일일 배치 1회로 충분.
+10,000 req/day 한도 — 일일 배치 1회 + on-demand backfill.
+
+Rate-limit 전략:
+- corp_list(CORPCODE.zip)는 프로세스 생존 동안 1회만 로드 (`_corp_list_cache`)
+- 동시 backfill은 `_backfill_sem` 세마포어(max 3)로 제한 → 외부 호출 폭주 방지
 
 환경 변수: DART_API_KEY
 """
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -18,6 +23,20 @@ from app.models.tables import Disclosure
 logger = logging.getLogger(__name__)
 
 KST = timezone(timedelta(hours=9))
+
+# 동시 backfill 제한 (DART 서버 보호)
+_backfill_sem = asyncio.Semaphore(3)
+
+# corp_list 메모리 캐시 — CORPCODE.zip은 3MB, 재다운로드 비용 큼
+_corp_list_cache = None
+
+
+def _get_corp_list():
+    global _corp_list_cache
+    if _corp_list_cache is None:
+        dart = _configure_dart()
+        _corp_list_cache = dart.get_corp_list()
+    return _corp_list_cache
 
 
 def _configure_dart():
@@ -77,12 +96,17 @@ def _fetch_by_corp_sync(corp_code: str, bgn_de: str, end_de: str) -> list[dict]:
 async def backfill_ticker(ticker: str, days: int = 90) -> dict:
     """watchlist 신규 추가 종목 백필.
 
-    Company.corp_code 필요. 없으면 dart-fss corp_list로 찾아서 Company.upsert.
+    Company.corp_code 필요. 없으면 dart-fss corp_list(캐시)로 찾아서 Company.upsert.
+    동시 실행은 세마포어로 max 3으로 제한.
     """
+    async with _backfill_sem:
+        return await _backfill_ticker_impl(ticker, days)
+
+
+async def _backfill_ticker_impl(ticker: str, days: int) -> dict:
     if not settings.dart_api_key:
         return {"status": "no_api_key"}
 
-    import asyncio
     from sqlalchemy import select
     from app.database import async_session
     from app.models.tables import Company, Disclosure
@@ -95,10 +119,9 @@ async def backfill_ticker(ticker: str, days: int = 90) -> dict:
     loop = asyncio.get_event_loop()
 
     if not company or not company.corp_code:
-        # dart corp_list에서 검색
+        # dart corp_list에서 검색 (캐시 사용)
         def _find_corp():
-            dart = _configure_dart()
-            corp_list = dart.get_corp_list()
+            corp_list = _get_corp_list()
             matches = [c for c in corp_list if getattr(c, "stock_code", None) == ticker]
             return matches[0] if matches else None
 

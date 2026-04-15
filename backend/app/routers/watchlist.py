@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +25,7 @@ async def _backfill_task(ticker: str, days: int):
 
 class AddRequest(BaseModel):
     ticker: str
+    backfill_days: int = Field(90, ge=0, le=365, description="공시 백필 기간 (0=비활성, 최대 1년)")
 
 
 @router.get("/")
@@ -49,10 +50,13 @@ async def add_watchlist(
     db.add(item)
     await db.commit()
 
-    # 백그라운드: 최근 90일 공시 백필 + anomaly scan (blocking 없이)
-    background.add_task(_backfill_task, req.ticker, 90)
+    # 백그라운드: 최근 N일 공시 백필 + anomaly scan (blocking 없이)
+    backfill_status = "skipped"
+    if req.backfill_days > 0:
+        background.add_task(_backfill_task, req.ticker, req.backfill_days)
+        backfill_status = f"queued_{req.backfill_days}d"
 
-    return {"ticker": req.ticker, "status": "added", "backfill": "queued_90d"}
+    return {"ticker": req.ticker, "status": "added", "backfill": backfill_status}
 
 
 @router.delete("/{ticker}")
