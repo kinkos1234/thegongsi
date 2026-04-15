@@ -71,25 +71,55 @@ def _fetch_filings_sync(bgn_de: str, end_de: str) -> list[dict]:
     return rows
 
 
-def _fetch_by_corp_sync(corp_code: str, bgn_de: str, end_de: str) -> list[dict]:
-    """특정 corp_code의 공시만 조회."""
+# 대형주 노이즈 필터 — 이 패턴의 공시는 backfill에서 제외 (DD 메모·anomaly에 무가치)
+ROUTINE_PATTERNS = (
+    "임원ㆍ주요주주특정증권등소유상황보고서",
+    "최대주주등소유주식변동신고서",
+    "주식등의대량보유상황보고서",
+)
+
+MAX_BACKFILL_ROWS = 500  # 대형주 폭탄 대비 상한
+
+
+def _fetch_by_corp_sync(corp_code: str, bgn_de: str, end_de: str, max_rows: int = MAX_BACKFILL_ROWS) -> list[dict]:
+    """특정 corp_code 공시 전체 페이지네이션.
+
+    - 모든 페이지 순회 (이전에는 iteration이 1페이지에서 멈춤 — dart-fss 0.4.15 이슈)
+    - ROUTINE_PATTERNS에 해당하는 routine 공시는 제외 (노이즈)
+    - max_rows 도달 시 조기 종료 (대형주는 365일 2000+건)
+    """
     dart = _configure_dart()
-    search = dart.filings.search(
-        corp_code=corp_code,
-        bgn_de=bgn_de,
-        end_de=end_de,
-        page_count=100,
-    )
-    rows = []
-    for f in search:
-        rows.append({
-            "rcept_no": f.rcept_no,
-            "corp_code": f.corp_code,
-            "ticker": (getattr(f, "stock_code", None) or "").strip(),
-            "report_nm": f.report_nm,
-            "rcept_dt": f.rcept_dt[:4] + "-" + f.rcept_dt[4:6] + "-" + f.rcept_dt[6:8],
-            "raw_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={f.rcept_no}",
-        })
+    rows: list[dict] = []
+    page_no = 1
+    while len(rows) < max_rows:
+        search = dart.filings.search(
+            corp_code=corp_code,
+            bgn_de=bgn_de,
+            end_de=end_de,
+            page_count=100,
+            page_no=page_no,
+        )
+        page_items = list(search)
+        if not page_items:
+            break
+        for f in page_items:
+            # routine 공시 필터
+            if any(p in f.report_nm for p in ROUTINE_PATTERNS):
+                continue
+            rows.append({
+                "rcept_no": f.rcept_no,
+                "corp_code": f.corp_code,
+                "ticker": (getattr(f, "stock_code", None) or "").strip(),
+                "report_nm": f.report_nm,
+                "rcept_dt": f.rcept_dt[:4] + "-" + f.rcept_dt[4:6] + "-" + f.rcept_dt[6:8],
+                "raw_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={f.rcept_no}",
+            })
+            if len(rows) >= max_rows:
+                break
+        total_page = getattr(search, "total_page", page_no)
+        if page_no >= total_page:
+            break
+        page_no += 1
     return rows
 
 
