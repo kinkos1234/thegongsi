@@ -224,6 +224,15 @@ async def _backfill_ticker_impl(ticker: str, days: int) -> dict:
     from app.services.anomaly.detector import scan_new_disclosures
     anomaly = await scan_new_disclosures()
 
+    # Neo4j 그래프 동기화 (ticker 한정)
+    graph_result = {"status": "skipped"}
+    try:
+        from app.services.graph.sync import sync_disclosures
+        graph_result = await sync_disclosures(tickers=[ticker])
+    except Exception as e:
+        logger.warning(f"graph sync for {ticker} failed: {e}")
+        graph_result = {"status": "error", "error": str(e)}
+
     return {
         "status": "ok",
         "ticker": ticker,
@@ -232,6 +241,7 @@ async def _backfill_ticker_impl(ticker: str, days: int) -> dict:
         "fetched": len(rows),
         "inserted": inserted,
         "anomaly": anomaly,
+        "graph": graph_result,
     }
 
 
