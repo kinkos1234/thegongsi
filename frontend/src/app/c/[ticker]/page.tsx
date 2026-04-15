@@ -91,20 +91,20 @@ export default async function CompanyPage({ params }: { params: Promise<{ ticker
         </section>
       )}
 
-      <div className="mt-16 grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-16">
-        <section>
-          <h2 className="font-serif text-[24px] mb-6">공시</h2>
-          <DisclosureList ticker={ticker} initial={data.disclosures} />
-        </section>
+      {/* DD 메모 — 전체 너비 헤드라인 카드 (conclusion-first, 편집자 톤) */}
+      <section className="mt-12">
+        {data.memo ? (
+          <DDMemoCard memo={data.memo} />
+        ) : (
+          <NoMemoCard ticker={ticker} />
+        )}
+      </section>
 
-        <aside>
-          {data.memo ? (
-            <DDMemoCard memo={data.memo} />
-          ) : (
-            <NoMemoCard ticker={ticker} />
-          )}
-        </aside>
-      </div>
+      {/* 공시 — 메모 아래 전체 너비 */}
+      <section className="mt-16">
+        <h2 className="font-serif text-[24px] mb-6">공시</h2>
+        <DisclosureList ticker={ticker} initial={data.disclosures} />
+      </section>
     </main>
   );
 }
