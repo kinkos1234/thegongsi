@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Target =
   | { kind: "disclosure"; rcept_no: string }
@@ -8,9 +8,25 @@ type Target =
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888";
 
+function targetKey(target: Target): string {
+  return target.kind === "disclosure"
+    ? `tg_fb_d_${target.rcept_no}`
+    : `tg_fb_m_${target.memo_version_id}`;
+}
+
 export function FeedbackButtons({ target }: { target: Target }) {
   const [state, setState] = useState<"idle" | "sending" | "ok" | "err">("idle");
   const [selected, setSelected] = useState<1 | -1 | null>(null);
+
+  // 이미 이 사용자가 투표했는지 localStorage로 확인
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const prev = localStorage.getItem(targetKey(target));
+    if (prev === "1" || prev === "-1") {
+      setSelected(Number(prev) as 1 | -1);
+      setState("ok");
+    }
+  }, [target]);
 
   async function send(rating: 1 | -1) {
     if (state === "sending" || state === "ok") return;
@@ -27,7 +43,12 @@ export function FeedbackButtons({ target }: { target: Target }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      setState(r.ok ? "ok" : "err");
+      if (r.ok) {
+        setState("ok");
+        localStorage.setItem(targetKey(target), String(rating));
+      } else {
+        setState("err");
+      }
     } catch {
       setState("err");
     }
