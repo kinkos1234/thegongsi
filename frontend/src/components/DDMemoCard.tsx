@@ -16,29 +16,39 @@ function stripInlineDisclaimer(text: string): string {
     .trim();
 }
 
-/** 한국어 장문 문단을 2~3문장 기준으로 재분할.
- *  LLM이 한 문단에 6+ 문장을 욱여넣는 경우 프론트에서 시각적 호흡 추가.
- *  마크다운 리스트/헤딩/테이블 줄은 건드리지 않음. */
+/** 한국어 장문 문단을 시각적으로 분할.
+ *  규칙:
+ *  - heading/list/table/blockquote/code 라인은 건드리지 않음
+ *  - 줄 길이 > 120자이거나 문장 >= 3개면 문장 경계에서 분할
+ *  - ① ② ③ ④ ⑤ 같은 인라인 열거 기호 앞에서 줄바꿈 강제
+ *  - 한국어 문장 종결(다./요./음./니까./함./까./나./라.)에서 split */
 function addBreathingRoom(text: string): string {
   const lines = text.split("\n");
   const out: string[] = [];
   for (const line of lines) {
-    // heading, list item, table row, blockquote, code 등은 그대로
     if (/^\s*(#{1,6}\s|[-*+]\s|\d+\.\s|>|\||`)/.test(line) || !line.trim()) {
       out.push(line);
       continue;
     }
-    // 한국어 문장 끝 '다.' '요.' '음.' 뒤에 공백이 있고 4 문장 넘으면 2 문장마다 \n\n
-    const sentences = line.split(/(?<=[다요음니까]\.)\s+/);
-    if (sentences.length >= 4) {
-      const reflowed: string[] = [];
-      for (let i = 0; i < sentences.length; i += 2) {
-        reflowed.push(sentences.slice(i, i + 2).join(" "));
+    // 인라인 열거 기호 (①~⑳) 앞에 줄바꿈 강제
+    let work = line.replace(/\s*([①-⑳])/g, "\n\n$1");
+    // 문장 경계 split (한국어 다양한 종결 + 공백)
+    const parts = work.split(/\n\n/);
+    const reflowed: string[] = [];
+    for (const p of parts) {
+      const sentences = p.split(/(?<=[다요음함까나라]\.)\s+/);
+      // 120자 초과 또는 3문장 이상이면 2문장마다 분할
+      if (p.length > 120 && sentences.length >= 2) {
+        const chunks: string[] = [];
+        for (let i = 0; i < sentences.length; i += 2) {
+          chunks.push(sentences.slice(i, i + 2).join(" "));
+        }
+        reflowed.push(chunks.join("\n\n"));
+      } else {
+        reflowed.push(p);
       }
-      out.push(reflowed.join("\n\n"));
-    } else {
-      out.push(line);
     }
+    out.push(reflowed.join("\n\n"));
   }
   return out.join("\n");
 }
