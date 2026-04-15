@@ -10,6 +10,7 @@ from app.models.user import (
     DisclosureFeedback,
     MemoFeedback,
     ReferenceSummary,
+    ServerKeyUsage,
     User,
     WatchListItem,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "DisclosureFeedback",
     "MemoFeedback",
     "ReferenceSummary",
+    "ServerKeyUsage",
     "Company",
     "FinancialSnapshot",
     "ShortSellingSnapshot",

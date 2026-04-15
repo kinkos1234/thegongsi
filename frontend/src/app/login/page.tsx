@@ -1,12 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 const TOKEN_KEY = "comad_stock_token";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") || "/watchlist";
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,7 +35,7 @@ export default function LoginPage() {
       }
       const data = await r.json();
       localStorage.setItem(TOKEN_KEY, data.token);
-      router.push("/watchlist");
+      router.push(next);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "실패");
     }
@@ -88,5 +90,13 @@ export default function LoginPage() {
         {mode === "login" ? "계정이 없으신가요? 가입 →" : "이미 계정이 있나요? 로그인 →"}
       </button>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<main className="mx-auto max-w-[420px] px-8 py-32 text-fg-3">Loading…</main>}>
+      <LoginForm />
+    </Suspense>
   );
 }

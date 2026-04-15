@@ -1,32 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
+type ToolCall = { name: string; args: Record<string, unknown>; result_summary: Record<string, unknown> };
 type Answer = {
   question: string;
-  cypher: string;
-  rows: Record<string, unknown>[];
+  tools_used: ToolCall[];
   answer: string | null;
 };
 
+const TOKEN_KEY = "comad_stock_token";
+
 export default function AskPage() {
+  const router = useRouter();
+  const [token, setToken] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [ans, setAns] = useState<Answer | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
+  useEffect(() => {
+    const t = typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
+    if (!t) {
+      router.replace("/login?next=/ask");
+      return;
+    }
+    setToken(t);
+  }, [router]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!q.trim()) return;
+    if (!q.trim() || !token) return;
     setLoading(true);
     setErr(null);
     try {
       const api = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888";
       const r = await fetch(`${api}/api/qa/ask`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ question: q }),
       });
+      if (r.status === 401) {
+        router.replace("/login?next=/ask");
+        return;
+      }
       if (!r.ok) throw new Error(await r.text());
       setAns(await r.json());
     } catch (e) {
@@ -34,6 +55,10 @@ export default function AskPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (!token) {
+    return <main className="mx-auto max-w-[820px] px-8 py-20 text-fg-3">로그인 확인 중…</main>;
   }
 
   return (

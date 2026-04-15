@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_hours: int = 72
     field_encryption_key: str = ""  # Fernet 키 (base64). 없으면 BYOK 저장 불가
+    # BYOK 미설정 사용자가 서버 키로 호출 가능한 일일 한도 (0=무제한)
+    server_key_daily_limit_memo: int = 3
+    server_key_daily_limit_ask: int = 20
     telegram_bot_token: str = ""
     slack_webhook_url: str = ""
     discord_webhook_url: str = ""

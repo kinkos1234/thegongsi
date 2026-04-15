@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.tables import DDMemo, DDMemoVersion
-from app.routers import get_current_user_optional
+from app.routers import get_current_user
 
 router = APIRouter()
 
@@ -16,10 +16,16 @@ class GenerateRequest(BaseModel):
 
 
 @router.post("/generate")
-async def generate_memo(req: GenerateRequest, user=Depends(get_current_user_optional)):
+async def generate_memo(req: GenerateRequest, user=Depends(get_current_user)):
+    """인증 필수. BYOK 우선, 없으면 서버 키 fallback(일일 쿼터)."""
     from app.services.memo.generator import generate_memo as _gen
-    user_id = user.id if user else None
-    return await _gen(req.ticker, user_id=user_id)
+    try:
+        return await _gen(req.ticker, user_id=user.id)
+    except RuntimeError as e:
+        msg = str(e)
+        if msg.startswith("quota_exceeded"):
+            raise HTTPException(status_code=429, detail=msg)
+        raise HTTPException(status_code=503, detail=msg)
 
 
 @router.get("/{ticker}")

@@ -27,10 +27,13 @@ class SetKeyRequest(BaseModel):
 
 @router.get("/status")
 async def status(user: User = Depends(get_current_user)):
+    from app.services.quota import get_usage_summary
+    usage = await get_usage_summary(user.id)
     return {
         "configured_server_side": crypto.is_configured(),
         "anthropic": bool(user.byok_anthropic_key),
         "openai": bool(user.byok_openai_key),
+        "server_fallback_usage": usage,
     }
 
 

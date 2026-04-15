@@ -161,7 +161,7 @@ async def generate_memo(ticker: str, user_id: str | None = None, _retry: int = 0
         async with async_session() as db:
             user_obj = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
 
-    client, key_owner = get_anthropic_client(user_obj)
+    client, key_owner = await get_anthropic_client(user_obj, kind="memo")
 
     async with async_session() as db:
         ctx = await _gather_context(ticker, db)

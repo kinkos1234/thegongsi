@@ -14,7 +14,11 @@ async def test_status_without_server_key(client, monkeypatch):
     t = await _register(client, "b1@k.com")
     r = await client.get("/api/byok/status", headers={"Authorization": f"Bearer {t}"})
     assert r.status_code == 200
-    assert r.json() == {"configured_server_side": False, "anthropic": False, "openai": False}
+    body = r.json()
+    assert body["configured_server_side"] is False
+    assert body["anthropic"] is False
+    assert body["openai"] is False
+    assert "server_fallback_usage" in body
 
 
 @pytest.mark.asyncio

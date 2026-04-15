@@ -94,3 +94,17 @@ class ReferenceSummary(Base):
     author: Mapped[str | None] = mapped_column(String(100), nullable=True)
     source: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ServerKeyUsage(Base):
+    """BYOK 미설정 사용자가 서버 키로 호출한 일일 카운트.
+
+    서버 관리자 쿼터 방어. kind: 'memo', 'ask' 분리.
+    """
+    __tablename__ = "server_key_usage"
+
+    id: Mapped[str] = mapped_column(String(12), primary_key=True, default=gen_id)
+    user_id: Mapped[str] = mapped_column(String(12), ForeignKey("users.id"), index=True)
+    date: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD KST
+    kind: Mapped[str] = mapped_column(String(20))  # memo / ask
+    count: Mapped[int] = mapped_column(Integer, default=0)
