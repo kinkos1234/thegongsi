@@ -78,21 +78,31 @@ export default function AskPage() {
         <section className="mt-16">
           {ans.answer && (
             <div className="mb-10 border-l-2 border-accent pl-6 py-2">
-              <p className="font-serif text-[18px] leading-[1.7] text-fg whitespace-pre-wrap">{ans.answer}</p>
+              <div className="font-serif text-[18px] leading-[1.7] text-fg whitespace-pre-wrap">
+                {ans.answer}
+              </div>
             </div>
           )}
-          <details className="mb-6 text-[13px] text-fg-3">
-            <summary className="cursor-pointer mono">근거 · cypher</summary>
-            <pre className="mono mt-2 bg-bg-2 p-4 text-[12px] whitespace-pre-wrap">{ans.cypher}</pre>
-            <h3 className="mono text-[11px] text-fg-3 uppercase mt-4 mb-2">rows</h3>
-            {ans.rows.length === 0 ? (
-              <p className="text-fg-3">결과 없음</p>
-            ) : (
-              <pre className="mono bg-bg-2 border border-border/50 p-4 overflow-x-auto whitespace-pre-wrap">
-                {JSON.stringify(ans.rows, null, 2)}
-              </pre>
-            )}
-          </details>
+          {ans.tools_used && ans.tools_used.length > 0 && (
+            <details className="mb-6 text-[13px] text-fg-3">
+              <summary className="cursor-pointer mono">
+                근거 · {ans.tools_used.length}건 도구 호출
+              </summary>
+              <ul className="mt-3 space-y-2">
+                {ans.tools_used.map((t, i) => (
+                  <li key={i} className="bg-bg-2 p-3 border border-border/30">
+                    <p className="mono text-[12px] text-accent">{t.name}</p>
+                    <pre className="mono mt-1 text-[11px] whitespace-pre-wrap text-fg-3">
+                      args: {JSON.stringify(t.args, null, 2)}
+                    </pre>
+                    <pre className="mono mt-1 text-[11px] whitespace-pre-wrap text-fg-2">
+                      result: {JSON.stringify(t.result_summary)}
+                    </pre>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </section>
       )}
     </main>

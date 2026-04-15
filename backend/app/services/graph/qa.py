@@ -1,44 +1,104 @@
-"""GraphRAG 자연어 Q&A.
+"""GraphRAG + Postgres 하이브리드 Q&A (Claude multi-tool).
 
 플로우:
-1. 질문 → Cypher 생성 (Claude few-shot)
-2. Cypher 실행 (read-only 가드)
-3. pgvector 유사도 검색 (공시/뉴스 embedding)
-4. 결과 + 인용 → 최종 한국어 답변 (Claude)
+1. 질문 → Claude가 도구 중 하나 선택:
+   - run_cypher  : 관계형 질문 (공급망/경영진/경쟁사)
+   - search_disclosures : 키워드 기반 공시 검색
+2. 도구 실행 → 결과 수집
+3. 결과 → 한국어 답변 합성 (Claude Haiku)
 
-현재는 skeleton — Cypher 생성 프롬프트 + 가드만.
+임베딩(pgvector) 없음 — 400 disclosures 규모에선 Claude tool + Postgres
+ILIKE가 단순+정확. 10,000+ corpora 때 Voyage/SBERT 재평가 (PRD/06 참고).
 """
 import logging
+from typing import Any
+
+from sqlalchemy import select
 
 from app.config import settings
+from app.database import async_session
+from app.models.tables import Disclosure
 from app.services.graph.client import run_cypher
 
 logger = logging.getLogger(__name__)
 
-CYPHER_SYSTEM = """너는 Neo4j Cypher 전문가다. 사용자의 한국어 질문을 Cypher로 변환한다.
 
-스키마:
+QA_SYSTEM = """너는 한국 주식 리서치 애널리스트다. 사용자의 자연어 질문에 답하기 위해 필요한 도구를 골라 호출하고, 결과를 한국어로 종합한다.
+
+사용 가능 도구:
+1) run_cypher — Neo4j 그래프 질의. 관계형 질문(공급망·경쟁사·인물·지분)에 적합.
+2) search_disclosures — Postgres 공시 제목 키워드 검색. 구체적 이슈(유상증자·합병·감사거절 등)에 적합.
+
+여러 도구를 순차 호출해도 좋다. 도구 결과를 받으면 최종 답변을 한국어로 2~4문장 또는 간결한 표, 경어.
+결과가 비면 '해당 조건의 데이터가 없습니다.' 로 시작.
+
+절대 금지:
+- 투자자문·매수추천 문구
+- '⚠️ 투자 추천이 아닙니다' 같은 disclaimer/경고 (UI에서 별도 표시)
+- blockquote 경고 블록"""
+
+
+# Neo4j 스키마 (Cypher 생성 시 참고)
+NEO4J_SCHEMA_HINT = """Neo4j 스키마:
 - (:Company {corp_code, ticker, name_ko, sector, market})
 - (:Person {id, name_ko, role})
-- (:Product {id, name, category})
 - (:Disclosure {rcept_no, report_nm, rcept_dt, severity, reason})
-- (Company)-[:COMPETES_WITH {strength}]->(Company)
-- (Company)-[:SUPPLIES {category, since}]->(Company)
+- (:TimePoint {date, year, quarter})
+- (Company)-[:COMPETES_WITH]->(Company)
+- (Company)-[:SUPPLIES]->(Company)
 - (Company)-[:OWNS {pct}]->(Company)
-- (Person)-[:LEADS {role, since}]->(Company)
+- (Person)-[:LEADS]->(Company)
 - (Person)-[:HOLDS {pct}]->(Company)
 - (Disclosure)-[:FILED_BY]->(Company)
+- (Disclosure)-[:OCCURRED_AT]->(TimePoint)
 
-severity 값: 'high', 'med', 'low', 'uncertain'.
-rcept_dt 형식: 'YYYY-MM-DD' 문자열. '오늘/최근' 질문은 문자열 리터럴로 비교 ('>= "2026-04-14"') — `date()` 같은 함수 사용 금지.
-회사명 질문이면 name_ko까지 RETURN. 공시 정보면 report_nm/rcept_dt/severity도 포함.
+severity: 'high','med','low','uncertain'. rcept_dt: 'YYYY-MM-DD' 문자열(date() 함수 금지). LIMIT 25 이하."""
 
-규칙:
-- READ ONLY. CREATE/MERGE/DELETE/SET/REMOVE 금지.
-- 결과는 LIMIT 25 이하.
-- 변수명은 영문 소문자.
-- Cypher만 반환, 설명·주석 금지.
-"""
+
+TOOLS = [
+    {
+        "name": "run_cypher",
+        "description": (
+            "Neo4j 그래프에 READ-ONLY Cypher 쿼리 실행. 관계형·구조적 질문에 사용. "
+            f"{NEO4J_SCHEMA_HINT}"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "cypher": {"type": "string", "description": "MATCH ... RETURN ... Cypher"},
+            },
+            "required": ["cypher"],
+        },
+    },
+    {
+        "name": "search_disclosures",
+        "description": (
+            "Postgres 공시 테이블을 키워드 ILIKE로 검색. "
+            "구체적 이슈(유상증자·합병·감사·최대주주변경 등) 찾을 때 사용. "
+            "keywords는 OR 매칭: 하나라도 포함되면 hit."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "keywords": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "부분 일치 키워드 (한국어)",
+                },
+                "ticker": {"type": "string", "description": "6자리 종목코드 필터 (선택)"},
+                "severity": {
+                    "type": "string",
+                    "enum": ["high", "med", "low", "uncertain"],
+                    "description": "severity 필터 (선택)",
+                },
+                "since": {"type": "string", "description": "'YYYY-MM-DD' 이후만"},
+                "limit": {"type": "integer", "default": 20},
+            },
+            "required": ["keywords"],
+        },
+    },
+]
+
 
 FORBIDDEN = ["CREATE", "MERGE", "DELETE", "SET ", "REMOVE", "DROP", "CALL "]
 
@@ -48,66 +108,134 @@ def is_safe(cypher: str) -> bool:
     return not any(kw in upper for kw in FORBIDDEN)
 
 
-async def generate_cypher(question: str) -> str:
-    if not settings.anthropic_api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY required for GraphRAG")
-    from anthropic import AsyncAnthropic
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-    msg = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=500,
-        system=CYPHER_SYSTEM,
-        messages=[{"role": "user", "content": question}],
-    )
-    cypher = msg.content[0].text.strip()
-    # 코드펜스 제거
+async def _tool_run_cypher(args: dict) -> Any:
+    cypher = args.get("cypher", "").strip()
     if cypher.startswith("```"):
         cypher = cypher.strip("`").split("\n", 1)[-1].rsplit("\n", 1)[0]
         if cypher.startswith("cypher"):
             cypher = cypher[len("cypher"):].strip()
     if not is_safe(cypher):
-        raise ValueError(f"Unsafe Cypher rejected: {cypher[:100]}")
-    return cypher
-
-
-ANSWER_SYSTEM = """너는 한국 주식 리서치 애널리스트다. 그래프 DB 조회 결과(rows)를 바탕으로 사용자 질문에 한국어로 답변한다.
-
-규칙:
-- 결과만 근거로 답. 없는 정보 추측 금지.
-- 회사명·인물명 등 고유명사는 rows에 있는 표기 그대로.
-- 2~4문장, 경어. 숫자는 mono 스타일 유지(백틱 사용).
-- 결과가 비면 "해당 조건의 데이터가 그래프에 없습니다." 로 시작.
-- 투자자문·추천 금지.
-"""
-
-
-async def ask(question: str) -> dict:
-    """Q&A 2-hop: Cypher 생성 → 실행 → 한국어 답변 합성.
-
-    실행은 read_only 세션으로 — 키워드 substring 가드는 1차 방어, Neo4j 서버의
-    ACL이 최종 방어(Torvalds·House·LeCun).
-    """
-    cypher = await generate_cypher(question)
+        return {"error": "Unsafe Cypher rejected"}
     rows = await run_cypher(cypher, read_only=True)
+    return {"cypher": cypher, "rows": rows[:25]}
 
-    # 2-hop: 한국어 답변 합성
-    answer = None
-    if settings.anthropic_api_key:
-        try:
-            from anthropic import AsyncAnthropic
-            client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+async def _tool_search_disclosures(args: dict) -> Any:
+    keywords = args.get("keywords", [])
+    if not keywords:
+        return {"error": "keywords required"}
+    ticker = args.get("ticker")
+    severity = args.get("severity")
+    since = args.get("since")
+    limit = min(int(args.get("limit", 20)), 100)
+
+    async with async_session() as db:
+        q = select(Disclosure).order_by(Disclosure.rcept_dt.desc())
+        # OR 조건 (ILIKE fallback on LIKE for SQLite)
+        from sqlalchemy import or_, func
+        clauses = [func.lower(Disclosure.report_nm).like(f"%{k.lower()}%") for k in keywords]
+        q = q.where(or_(*clauses))
+        if ticker:
+            q = q.where(Disclosure.ticker == ticker)
+        if severity:
+            q = q.where(Disclosure.anomaly_severity == severity)
+        if since:
+            q = q.where(Disclosure.rcept_dt >= since)
+        q = q.limit(limit)
+        rows = (await db.execute(q)).scalars().all()
+    return {
+        "count": len(rows),
+        "rows": [
+            {
+                "rcept_no": d.rcept_no,
+                "ticker": d.ticker,
+                "title": d.report_nm,
+                "date": d.rcept_dt,
+                "severity": d.anomaly_severity,
+            }
+            for d in rows
+        ],
+    }
+
+
+TOOL_DISPATCH = {
+    "run_cypher": _tool_run_cypher,
+    "search_disclosures": _tool_search_disclosures,
+}
+
+
+async def ask(question: str, max_hops: int = 3) -> dict:
+    """Multi-tool Q&A. Claude가 도구 선택 → 결과 → 최종 합성까지 agentic loop."""
+    if not settings.anthropic_api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY required")
+
+    from anthropic import AsyncAnthropic
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+    messages: list[dict[str, Any]] = [{"role": "user", "content": question}]
+    tool_calls_made: list[dict[str, Any]] = []
+
+    for _hop in range(max_hops):
+        msg = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1500,
+            system=QA_SYSTEM,
+            messages=messages,
+            tools=TOOLS,
+        )
+
+        # 도구 호출 없고 최종 답변이면 종료
+        if msg.stop_reason != "tool_use":
+            answer_text = "".join(
+                getattr(b, "text", "") for b in msg.content if getattr(b, "type", None) == "text"
+            ).strip()
+            return {
+                "question": question,
+                "tools_used": tool_calls_made,
+                "answer": answer_text or None,
+            }
+
+        # assistant message + tool_use 블록 보존
+        messages.append({"role": "assistant", "content": msg.content})
+
+        tool_results = []
+        for block in msg.content:
+            if getattr(block, "type", None) != "tool_use":
+                continue
+            name = block.name
+            args = block.input or {}
+            handler = TOOL_DISPATCH.get(name)
+            if not handler:
+                result = {"error": f"unknown tool {name}"}
+            else:
+                try:
+                    result = await handler(args)
+                except Exception as e:
+                    logger.exception(f"tool {name} failed")
+                    result = {"error": str(e)}
+            tool_calls_made.append({"name": name, "args": args, "result_summary": _summarize(result)})
             import json as _json
-            msg = await client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=400,
-                system=ANSWER_SYSTEM,
-                messages=[{
-                    "role": "user",
-                    "content": f"질문: {question}\n\nrows:\n{_json.dumps(rows[:25], ensure_ascii=False, indent=2)}",
-                }],
-            )
-            answer = msg.content[0].text.strip()
-        except Exception as e:
-            logger.warning(f"answer synth failed: {e}")
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": block.id,
+                "content": _json.dumps(result, ensure_ascii=False)[:6000],
+            })
 
-    return {"question": question, "cypher": cypher, "rows": rows[:25], "answer": answer}
+        messages.append({"role": "user", "content": tool_results})
+
+    # max_hops 초과
+    return {
+        "question": question,
+        "tools_used": tool_calls_made,
+        "answer": "도구 호출이 허용 횟수를 초과했습니다.",
+    }
+
+
+def _summarize(result: Any) -> dict:
+    if not isinstance(result, dict):
+        return {"type": type(result).__name__}
+    if "rows" in result:
+        return {"row_count": len(result["rows"])}
+    if "error" in result:
+        return {"error": result["error"][:100]}
+    return {"keys": list(result.keys())}

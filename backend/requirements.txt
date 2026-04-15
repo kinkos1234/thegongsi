@@ -16,6 +16,5 @@ pykrx>=1.0.45
 cryptography>=43.0.0
 dart-fss>=0.4.10
 neo4j>=5.27.0
-pgvector>=0.3.6
 pytest>=8.0
 pytest-asyncio>=0.23
