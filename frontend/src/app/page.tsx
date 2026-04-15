@@ -11,7 +11,7 @@ export default function Home() {
         </h1>
 
         <p className="mt-12 text-[17px] leading-[1.7] text-fg-2">
-          DART 공시를 AI가 한국어로 요약하고, 이상징후를 플래그하며,
+          DART 공시를 AI가 한국어로 요약하고, 이상 공시를 플래그하며,
           GraphRAG로 공급망·경쟁사·인사이더를 이어 붙입니다.
           네이버 증권을 두 세대 앞서, 광고 없이.
         </p>
@@ -38,7 +38,7 @@ export default function Home() {
               DART에는 연 100만건의 공시가 오른다. 대부분은 루틴이지만, 그 사이 상장폐지·감사거절·최대주주변경처럼 투자자를 직격할 신호가 섞여 있다.
             </p>
             <p className="text-[16px] leading-[1.7] text-fg-2">
-              The Gongsi는 규칙(11개 키워드)으로 1차 필터, Claude Haiku로 severity를 판정합니다. 그리고 GraphRAG로 "HBM 공급망 중 이상 공시" 같은 다단계 질의를 풉니다.
+              The Gongsi는 규칙(11개 키워드)으로 1차 필터, AI로 심각도를 판정합니다. "HBM 공급망 중 이상 공시" 같은 다단계 질의를 자연어로 풉니다.
             </p>
             <p className="mono text-[12px] text-fg-3 uppercase tracking-wider">참고</p>
             <ul className="text-[14px] text-fg-2 space-y-2">
@@ -51,7 +51,7 @@ export default function Home() {
 
       <section className="border-t border-border/50">
         <div className="mx-auto max-w-[1080px] px-8 py-24 grid grid-cols-1 md:grid-cols-3 gap-12">
-          <Feature label="DART 공시" value="전수 수집 · 한국어 요약 · severity 플래그" />
+          <Feature label="DART 공시" value="전수 수집 · 한국어 요약 · 심각도 플래그" />
           <Feature label="Ask" value="자연어 질의 · 그래프 + 공시 hybrid" />
           <Feature label="DD 메모" value="bull / bear / thesis · 버전 히스토리" />
         </div>
