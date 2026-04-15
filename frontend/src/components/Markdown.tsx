@@ -75,15 +75,16 @@ function transformCitations(text: string): ReactNode[] {
   return parts.map((p, i) => {
     const matches = Array.from(p.matchAll(/rcept_no=(\d+)/g));
     if (matches.length > 0) {
+      // inline flow — 각 링크는 nowrap이되, 링크들 사이에서는 줄바꿈 허용
       return (
-        <span key={i} className="inline-flex items-baseline gap-0.5 ml-0.5">
+        <span key={i}>
           {matches.map((m, j) => (
             <a
               key={j}
               href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${m[1]}`}
               target="_blank"
               rel="noreferrer"
-              className="mono text-[10px] text-fg-3 hover:text-accent whitespace-nowrap px-1"
+              className="mono text-[10px] text-fg-3 hover:text-accent whitespace-nowrap ml-0.5"
               title={`DART rcept_no=${m[1]}`}
             >
               [{m[1].slice(0, 8)}…]
