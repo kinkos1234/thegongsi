@@ -1,0 +1,204 @@
+# comad-stock Benchmark Suite v0.1
+#
+# AlphaFold-style gold queries. 릴리스마다 recall/precision 측정.
+# Phase 1 MVP (3주차)에 recall 0.6 통과 목표.
+#
+# Format:
+#   - id: 고유 slug
+#     category: governance | supply_chain | competitor | insider | anomaly | financial
+#     question: 한국어 자연어 질의
+#     expected:
+#       tickers: [...] OR persons: [...]
+#     min_recall: 0.0~1.0 (이 값 이하면 regression)
+#     min_precision: 0.0~1.0
+
+version: 0.1
+total: 20
+created: 2026-04-15
+
+queries:
+  # --- governance (지배구조) ---
+  - id: samsung-leader
+    category: governance
+    question: "삼성전자를 이끄는 사람은?"
+    expected:
+      persons: [이재용]
+    min_recall: 1.0
+    min_precision: 1.0
+
+  - id: sk-leader
+    category: governance
+    question: "SK하이닉스 회장은 누구야?"
+    expected:
+      persons: [최태원]
+    min_recall: 1.0
+    min_precision: 1.0
+
+  - id: leads-any
+    category: governance
+    question: "이재용이 이끄는 회사들"
+    expected:
+      tickers: ["005930"]
+    min_recall: 1.0
+    min_precision: 0.5
+
+  # --- supply_chain ---
+  - id: hbm-suppliers
+    category: supply_chain
+    question: "SK하이닉스에 장비를 공급하는 회사"
+    expected:
+      tickers: ["042700"]  # 한미반도체
+    min_recall: 0.8
+    min_precision: 0.7
+
+  - id: samsung-suppliers
+    category: supply_chain
+    question: "삼성전자에 부품을 공급하는 상장사"
+    expected:
+      tickers: ["042700", "009150"]  # 한미반도체, 삼성전기
+    min_recall: 0.6
+    min_precision: 0.6
+
+  - id: hbm-chain
+    category: supply_chain
+    question: "HBM 관련 공급망에 속한 회사"
+    expected:
+      tickers: ["005930", "000660", "042700"]
+    min_recall: 0.7
+    min_precision: 0.5
+
+  # --- competitor ---
+  - id: samsung-rivals
+    category: competitor
+    question: "삼성전자 메모리 사업 경쟁사"
+    expected:
+      tickers: ["000660"]
+    min_recall: 1.0
+    min_precision: 0.8
+
+  - id: memory-duopoly
+    category: competitor
+    question: "한국 메모리 반도체 양강"
+    expected:
+      tickers: ["005930", "000660"]
+    min_recall: 1.0
+    min_precision: 0.9
+
+  # --- insider (지분·대주주) ---
+  - id: samsung-major-holder
+    category: insider
+    question: "삼성전자의 최대주주"
+    expected:
+      persons: []  # Phase 2 확장 후 채움
+    min_recall: 0.0
+    min_precision: 0.0
+    skip_until: "2026-05-15"
+
+  # --- anomaly (이상공시) ---
+  - id: delisting-recent
+    category: anomaly
+    question: "최근 1개월 내 상장폐지 우려 공시"
+    expected:
+      tickers: []  # DART 연동 후 날짜별 동적
+    min_recall: 0.7
+    min_precision: 0.8
+    dynamic: true
+    skip_until: "2026-04-20"  # DART 키 확보 후
+
+  - id: audit-rejection
+    category: anomaly
+    question: "감사의견거절 공시가 있는 회사"
+    expected:
+      tickers: []
+    min_recall: 0.8
+    min_precision: 0.9
+    dynamic: true
+    skip_until: "2026-04-20"
+
+  - id: major-shareholder-change
+    category: anomaly
+    question: "최근 3개월 내 최대주주가 바뀐 회사"
+    expected:
+      tickers: []
+    min_recall: 0.7
+    min_precision: 0.7
+    dynamic: true
+    skip_until: "2026-04-20"
+
+  # --- financial ---
+  - id: high-per-kospi
+    category: financial
+    question: "KOSPI 200 중 PER 30 이상인 종목"
+    expected:
+      tickers: []
+    min_recall: 0.7
+    min_precision: 0.8
+    dynamic: true
+    skip_until: "2026-05-01"
+
+  - id: dividend-yield-top
+    category: financial
+    question: "배당수익률 상위 10개 종목"
+    expected:
+      tickers: []
+    min_recall: 0.8
+    min_precision: 1.0
+    dynamic: true
+    skip_until: "2026-05-01"
+
+  - id: short-selling-spike
+    category: financial
+    question: "공매도 비중 최근 급등한 종목"
+    expected:
+      tickers: []
+    min_recall: 0.6
+    min_precision: 0.7
+    dynamic: true
+    skip_until: "2026-05-01"
+
+  # --- mixed (graph + disclosure, Phase 2) ---
+  - id: hbm-with-anomaly
+    category: supply_chain
+    question: "HBM 공급망 중 이상 공시가 있는 회사"
+    expected:
+      tickers: []
+    min_recall: 0.5
+    min_precision: 0.6
+    dynamic: true
+    skip_until: "2026-06-01"
+
+  - id: samsung-group-subsidiaries
+    category: governance
+    question: "삼성그룹 상장 자회사"
+    expected:
+      tickers: []
+    min_recall: 0.9
+    min_precision: 0.9
+    skip_until: "2026-05-15"
+
+  - id: sk-group-leadership
+    category: governance
+    question: "SK 그룹사 CEO 목록"
+    expected:
+      persons: []
+    min_recall: 0.7
+    min_precision: 0.8
+    skip_until: "2026-05-15"
+
+  - id: hyundai-auto-chain
+    category: supply_chain
+    question: "현대자동차 1차 부품 협력사"
+    expected:
+      tickers: []
+    min_recall: 0.6
+    min_precision: 0.7
+    skip_until: "2026-05-15"
+
+  - id: competitors-to-naver
+    category: competitor
+    question: "네이버와 카카오의 경쟁 관계가 있는 사업 영역"
+    expected:
+      tickers: ["035420", "035720"]
+    min_recall: 1.0
+    min_precision: 0.8
+    skip_until: "2026-05-15"
