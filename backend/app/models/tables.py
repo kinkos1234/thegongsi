@@ -184,3 +184,39 @@ class NewsItem(Base):
     url: Mapped[str] = mapped_column(String(500))
     published_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     summary_ko: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+# --- Feedback / Ground truth (Fei-Fei) ---
+
+class DisclosureFeedback(Base):
+    __tablename__ = "disclosure_feedback"
+
+    id: Mapped[str] = mapped_column(String(12), primary_key=True, default=gen_id)
+    user_id: Mapped[str | None] = mapped_column(String(12), ForeignKey("users.id"), nullable=True, index=True)
+    rcept_no: Mapped[str] = mapped_column(String(20), index=True)
+    rating: Mapped[int] = mapped_column(Integer)  # 1 / -1
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class MemoFeedback(Base):
+    __tablename__ = "memo_feedback"
+
+    id: Mapped[str] = mapped_column(String(12), primary_key=True, default=gen_id)
+    user_id: Mapped[str | None] = mapped_column(String(12), ForeignKey("users.id"), nullable=True, index=True)
+    memo_version_id: Mapped[str] = mapped_column(String(12), index=True)
+    rating: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ReferenceSummary(Base):
+    """애널리스트 reference 요약 — fine-tuning 용 ground truth."""
+    __tablename__ = "reference_summaries"
+
+    id: Mapped[str] = mapped_column(String(12), primary_key=True, default=gen_id)
+    rcept_no: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    summary_ko: Mapped[str] = mapped_column(Text)
+    author: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
