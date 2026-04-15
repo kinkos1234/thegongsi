@@ -2,8 +2,8 @@
 
 ## Title Options
 
-1. **Show HN: comad-stock – Open-source AI research terminal for Korean equities (DART + GraphRAG)**
-2. Show HN: DART-native research terminal — Korean filings → GraphRAG Q&A in Korean
+1. **Show HN: The Gongsi – Open-source AI research terminal for Korean equities (DART + GraphRAG)**
+2. Show HN: The Gongsi — Korean disclosures, deciphered (DART-native research terminal)
 3. Show HN: A Bloomberg-for-Korean-stocks that's open source and ad-free
 
 **Pick #1** — most specific, mentions keywords HN audience recognizes.
@@ -12,21 +12,21 @@
 
 > Hi HN,
 >
-> comad-stock is an open-source AI research terminal for Korean listed companies. Korea's filing system (DART) publishes ~1M disclosures per year; the vast majority is routine, but a small fraction — going-concern doubt, insider trades, dilutive equity issuance, major-shareholder changes — flips investment theses. comad-stock auto-summarizes every filing in Korean, rule-flags anomalies with an optional LLM second pass, and answers natural-language questions over a Neo4j graph of supply chain / competitors / executives via Cypher generation → read-only execution → Korean synthesis (Claude Haiku, 2-hop).
+> The Gongsi is an open-source AI research terminal for Korean listed companies. Korea's filing system (DART) publishes ~1M disclosures per year; the vast majority is routine, but a small fraction — going-concern doubt, insider trades, dilutive equity issuance, major-shareholder changes — flips investment theses. The Gongsi auto-summarizes every filing in Korean, rule-flags anomalies with an optional LLM second pass, and answers natural-language questions over a Neo4j graph of supply chain / competitors / executives via Cypher generation → read-only execution → Korean synthesis (Claude Haiku, 2-hop).
 >
 > It's Korean-first, self-hostable with BYOK (you bring your own Claude/OpenAI keys; we encrypt them with Fernet). The graph is seeded with a small HBM supply-chain example; the roadmap is to auto-extract 50,000 edges from DART governance reports, FTC large-business-group disclosures, and LLM-NER over news corpora. There's a benchmark suite (AlphaFold-style: 100 gold queries, recall/precision tracked per release) so progress is measurable instead of vibe-based.
 >
 > Stack: FastAPI (async SQLAlchemy) + Next.js 16 + Neo4j 5 + pgvector. pytest 34/34. MIT. Positioned against Fey / Seeking Alpha for US markets; nothing comparable exists for Korea. I'd love feedback on the graph extraction design (docs/GRAPH_PIPELINE.md) and the DD-memo guardrails (citation fabrication validator + forbidden-word re-gen).
 
 Links:
-- GitHub: https://github.com/{TBD}/comad-stock
+- GitHub: https://github.com/{TBD}/The Gongsi
 - Live demo: {TBD after deploy}
 - Design doc (Fey-style UI): docs/DESIGN.md
 
 ## Comment prep (likely top responses)
 
 ### "Why not just use [네이버증권/토스증권]?"
-> They're retail feeds: prices, news, ads. Zero filing summaries, zero relationship graph, zero natural-language Q&A. A pro research user alt-tabs to DART.fss.or.kr, reads raw HTML/PDF, and takes notes manually. comad-stock is for that workflow.
+> They're retail feeds: prices, news, ads. Zero filing summaries, zero relationship graph, zero natural-language Q&A. A pro research user alt-tabs to DART.fss.or.kr, reads raw HTML/PDF, and takes notes manually. The Gongsi is for that workflow.
 
 ### "What's DART?"
 > DART (Data Analysis, Retrieval and Transfer System) is Korea's SEC EDGAR. All listed companies file quarterly reports, major-event disclosures, governance structures, etc. in Korean. Public API limited to 10,000 requests/day per key.

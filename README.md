@@ -1,15 +1,16 @@
-# comad-stock
+# The Gongsi · 더공시
 
-**DART-native AI research terminal for Korean equities — open source, Korean-first.**
+**Korean disclosures, deciphered.**
+*DART-native AI research terminal for Korean equities — open source, Korean-first.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-alpha-orange)](#)
 [![Stack](https://img.shields.io/badge/stack-FastAPI%20%2B%20Next.js%2016%20%2B%20Neo4j-blue)](#)
 
 > **TL;DR (English)**
-> Korean listed companies file ~1M disclosures per year on DART (the national electronic filing system, like SEC EDGAR). **95% is routine noise; 5% flips investment theses** — going-concern doubt, insider trades, equity dilution, major-shareholder changes. comad-stock auto-summarizes every filing in Korean, rule-flags anomalies, and answers natural-language supply-chain questions via GraphRAG (Cypher over Neo4j + Claude 2-hop). Self-hostable with BYOK. For DIY investors and EM-Asia desks at global funds.
+> Korean listed companies file ~1M disclosures per year on DART (the national electronic filing system, like SEC EDGAR). **95% is routine noise; 5% flips investment theses** — going-concern doubt, insider trades, equity dilution, major-shareholder changes. **The Gongsi** auto-summarizes every filing in Korean, rule-flags anomalies, and answers natural-language supply-chain questions via GraphRAG (Cypher over Neo4j + Claude multi-tool). Self-hostable with BYOK. For DIY investors and EM-Asia desks at global funds.
 
-한국 리테일 투자자에게는 Fey·Seeking Alpha 수준의 진지한 리서치 도구가 없다. 네이버 증권은 광고+뉴스, 토스증권 인사이트는 단편적, 증권플러스는 가격 중심. **comad-stock이 그 공백을 채운다.**
+한국 리테일 투자자에게는 Fey·Seeking Alpha 수준의 진지한 리서치 도구가 없다. 네이버 증권은 광고+뉴스, 토스증권 인사이트는 단편적, 증권플러스는 가격 중심. **The Gongsi가 그 공백을 채운다.**
 
 ## 우리가 믿는 것
 

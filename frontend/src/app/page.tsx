@@ -2,7 +2,7 @@ export default function Home() {
   return (
     <>
       <section className="mx-auto max-w-[720px] px-8 pt-32 pb-40">
-        <p className="mono text-fg-3 text-[13px] tracking-wider">COMAD-STOCK · v0.1 · OSS</p>
+        <p className="mono text-fg-3 text-[13px] tracking-wider">THE GONGSI · 더공시 · v0.1 · OSS</p>
 
         <h1 className="mt-8 font-serif text-[72px] leading-[1.05] tracking-[-0.02em]">
           한국 주식,
@@ -38,7 +38,7 @@ export default function Home() {
               DART에는 연 100만건의 공시가 오른다. 대부분은 루틴이지만, 그 사이 상장폐지·감사거절·최대주주변경처럼 투자자를 직격할 신호가 섞여 있다.
             </p>
             <p className="text-[16px] leading-[1.7] text-fg-2">
-              comad-stock은 규칙(11개 키워드)으로 1차 필터, Claude Haiku로 severity를 판정합니다. 그리고 GraphRAG로 “HBM 공급망 중 이상 공시” 같은 다단계 질의를 풉니다.
+              The Gongsi는 규칙(11개 키워드)으로 1차 필터, Claude Haiku로 severity를 판정합니다. 그리고 GraphRAG로 "HBM 공급망 중 이상 공시" 같은 다단계 질의를 풉니다.
             </p>
             <p className="mono text-[12px] text-fg-3 uppercase tracking-wider">참고</p>
             <ul className="text-[14px] text-fg-2 space-y-2">
@@ -59,7 +59,7 @@ export default function Home() {
 
       <footer className="border-t border-border/50 py-12">
         <div className="mx-auto max-w-[1080px] px-8 flex items-baseline justify-between">
-          <p className="mono text-[12px] text-fg-3">© 2026 comad-stock · MIT</p>
+          <p className="mono text-[12px] text-fg-3">© 2026 The Gongsi · MIT</p>
           <p className="mono text-[12px] text-fg-3">투자자문 아님 · 정보 제공만</p>
         </div>
       </footer>

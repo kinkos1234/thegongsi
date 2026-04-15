@@ -34,8 +34,8 @@ export function NavBar() {
   return (
     <nav className="border-b border-border/50">
       <div className="mx-auto max-w-[1280px] flex items-center justify-between px-8 py-5">
-        <Link href="/" className="mono text-[13px] tracking-wider text-fg">
-          COMAD-STOCK
+        <Link href="/" className="font-serif text-[18px] tracking-tight text-fg">
+          The Gongsi
         </Link>
         <ul className="flex items-center gap-8">
           {LINKS.map((l) => (
