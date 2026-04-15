@@ -39,6 +39,9 @@ html, body {
   color: var(--color-fg);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  /* 한국어 단어 단위 줄바꿈. 긴 영문은 overflow-wrap으로 폴백. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 /* 숫자·티커·코드는 항상 tabular */
