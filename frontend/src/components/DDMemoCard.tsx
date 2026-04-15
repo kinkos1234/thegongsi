@@ -36,15 +36,15 @@ function addBreathingRoom(text: string): string {
     const parts = work.split(/\n\n/);
     const reflowed: string[] = [];
     for (const p of parts) {
-      // 문장 끝 패턴 넓게: 한국어 종결(다/요/음/니까/함/까/나/라) + 괄호 닫기 뒤의 '.'
-      // 또는 단순히 마침표+공백 (숫자 소수점 제외 — 앞이 숫자면 무시)
-      const sentences = p.split(/(?<=[다요음함까나라]\.|\)\.|\].)\s+|(?<=[^\d])\.\s+/);
+      // 문장 끝 split — 마침표+공백 (앞이 숫자 아닌 경우, "3.14" 제외)
+      const sentences = p.split(/(?<=[^\d\s])\.\s+/);
       if (p.length > 120 && sentences.length >= 2) {
-        const chunks: string[] = [];
-        for (let i = 0; i < sentences.length; i += 2) {
-          chunks.push(sentences.slice(i, i + 2).join(" "));
-        }
-        reflowed.push(chunks.join("\n\n"));
+        // split으로 마침표가 제거됐으므로 마지막 문장 빼고 '.' 복원
+        const withPeriod = sentences.map((s, i) =>
+          i < sentences.length - 1 ? s + "." : s,
+        );
+        // 각 문장을 별도 문단으로 (긴 문단에서 최대 시각적 호흡)
+        reflowed.push(withPeriod.join("\n\n"));
       } else {
         reflowed.push(p);
       }
