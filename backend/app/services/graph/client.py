@@ -26,14 +26,17 @@ def get_driver():
 
 
 @asynccontextmanager
-async def session():
+async def session(read_only: bool = False):
+    """read_only=True → Neo4j 서버가 쓰기 연산을 reject (Torvalds·LeCun: 키워드 파싱 대신 DB 강제)."""
+    from neo4j import READ_ACCESS, WRITE_ACCESS
     driver = get_driver()
-    async with driver.session() as s:
+    access_mode = READ_ACCESS if read_only else WRITE_ACCESS
+    async with driver.session(default_access_mode=access_mode) as s:
         yield s
 
 
-async def run_cypher(query: str, params: dict | None = None) -> list[dict]:
-    async with session() as s:
+async def run_cypher(query: str, params: dict | None = None, read_only: bool = False) -> list[dict]:
+    async with session(read_only=read_only) as s:
         result = await s.run(query, params or {})
         return [dict(record) for record in await result.data()]
 

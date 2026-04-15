@@ -28,7 +28,7 @@ export default function Home() {
         <div className="mx-auto max-w-[1080px] px-8 py-32 grid grid-cols-1 md:grid-cols-2 gap-16">
           <div>
             <p className="mono text-[12px] text-fg-3 uppercase tracking-wider">왜 DART인가</p>
-            <h2 className="mt-4 font-serif text-[40px] leading-[1.15] tracking-[-0.01em]">
+            <h2 className="mt-4 font-serif text-[40px] leading-[1.15]">
               공시는 <span className="text-fg-2">원재료</span>,<br />
               문제는 <span className="text-fg-2">해석</span>.
             </h2>

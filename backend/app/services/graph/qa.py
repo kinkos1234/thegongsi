@@ -76,9 +76,13 @@ ANSWER_SYSTEM = """너는 한국 주식 리서치 애널리스트다. 그래프 
 
 
 async def ask(question: str) -> dict:
-    """Q&A 2-hop: Cypher 생성 → 실행 → 한국어 답변 합성."""
+    """Q&A 2-hop: Cypher 생성 → 실행 → 한국어 답변 합성.
+
+    실행은 read_only 세션으로 — 키워드 substring 가드는 1차 방어, Neo4j 서버의
+    ACL이 최종 방어(Torvalds·House·LeCun).
+    """
     cypher = await generate_cypher(question)
-    rows = await run_cypher(cypher)
+    rows = await run_cypher(cypher, read_only=True)
 
     # 2-hop: 한국어 답변 합성
     answer = None

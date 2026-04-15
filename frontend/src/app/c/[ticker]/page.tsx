@@ -5,7 +5,8 @@ import { Sparkline } from "@/components/Sparkline";
 import type { Company, Disclosure, DDMemo, Quote } from "@/types";
 
 async function fetchData(ticker: string): Promise<{
-  company: Company;
+  company: Company | null;
+  companyStatus: number;
   disclosures: Disclosure[];
   memo: DDMemo | null;
   quote: Quote | null;
@@ -20,20 +21,55 @@ async function fetchData(ticker: string): Promise<{
     }
   };
 
-  const [company, disclosures, quote] = await Promise.all([
-    safe<Company>(fetch(`${api}/api/companies/${ticker}`, { cache: "no-store" })),
+  let companyStatus = 200;
+  let company: Company | null = null;
+  try {
+    const r = await fetch(`${api}/api/companies/${ticker}`, { cache: "no-store" });
+    companyStatus = r.status;
+    if (r.ok) company = await r.json();
+  } catch {
+    companyStatus = 0;
+  }
+
+  const [disclosures, quote] = await Promise.all([
     safe<Disclosure[]>(fetch(`${api}/api/disclosures/?ticker=${ticker}`, { cache: "no-store" })),
     safe<Quote>(fetch(`${api}/api/quotes/${ticker}`, { cache: "no-store" })),
   ]);
-  return { company: company ?? mock(ticker), disclosures: disclosures ?? mockDisc(), memo: null, quote };
+  return {
+    company,
+    companyStatus,
+    disclosures: disclosures ?? [],
+    memo: null,
+    quote,
+  };
 }
+
+import { notFound } from "next/navigation";
 
 export default async function CompanyPage({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker } = await params;
+
+  // 6자리 숫자가 아니면 즉시 404 (Bach)
+  if (!/^\d{6}$/.test(ticker)) {
+    notFound();
+  }
+
   const data = await fetchData(ticker);
+
+  // backend/quote 모두 실패 = ticker 미존재 → 404
+  if (data.companyStatus === 404 && !data.quote?.price) {
+    notFound();
+  }
+
+  // 개발 편의: mock은 ticker가 005930일 때만 제공
+  if (!data.company && !data.quote?.price && ticker !== "005930") {
+    notFound();
+  }
+  const baseCompany = data.company ?? mock(ticker);
   const company = data.quote?.price != null
-    ? { ...data.company, price: data.quote.price, change: data.quote.change_percent }
-    : data.company;
+    ? { ...baseCompany, price: data.quote.price, change: data.quote.change_percent }
+    : baseCompany;
+  const disclosures = data.disclosures.length ? data.disclosures : (ticker === "005930" ? mockDisc() : []);
   const memo = data.memo ?? mockMemo();
   const up = (company.change ?? 0) >= 0;
 
@@ -59,9 +95,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ ticker
         <section>
           <h2 className="font-serif text-[24px] mb-6">공시</h2>
           <div>
-            {data.disclosures.map((d) => (
-              <DisclosureRow key={d.rcept_no} d={d} />
-            ))}
+            {disclosures.length === 0 ? (
+              <p className="py-12 text-fg-3">공시 데이터 없음. DART 수집 실행 후 다시 확인하세요.</p>
+            ) : (
+              disclosures.map((d) => <DisclosureRow key={d.rcept_no} d={d} />)
+            )}
           </div>
         </section>
 

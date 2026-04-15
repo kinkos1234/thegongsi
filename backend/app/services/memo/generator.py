@@ -94,8 +94,33 @@ def _parse_memo(text: str) -> dict:
     return {k: v.strip() for k, v in sections.items()}
 
 
-async def generate_memo(ticker: str, user_id: str | None = None) -> dict:
-    """신규 DDMemoVersion 생성."""
+# 금지어: 투자자문·추천성 표현 (Amodei guardrail)
+FORBIDDEN_WORDS = ("목표가", "매수 추천", "매도 추천", "보유 추천", "Strong Buy", "strong buy")
+
+
+def _has_forbidden_words(text: str) -> tuple[bool, str]:
+    for w in FORBIDDEN_WORDS:
+        if w in text:
+            return True, w
+    return False, ""
+
+
+def _validate_citations(text: str, valid_rcept_nos: set[str]) -> tuple[bool, list[str]]:
+    """각주의 rcept_no가 실제 db에 존재하는지 검증. 없으면 fabrication (LeCun)."""
+    import re
+    cited = set(re.findall(r"rcept_no=(\d+)", text))
+    fake = [c for c in cited if c not in valid_rcept_nos]
+    return len(fake) == 0, fake
+
+
+async def generate_memo(ticker: str, user_id: str | None = None, _retry: int = 0) -> dict:
+    """신규 DDMemoVersion 생성.
+
+    Guardrails:
+    - 금지어(목표가·추천) 발견 시 1회 재생성
+    - 각주 rcept_no의 fabrication 검증, 발견 시 1회 재생성
+    - 재생성 2회 후에도 실패하면 마지막 출력 저장 + warning 반환
+    """
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY required")
 
@@ -117,6 +142,22 @@ async def generate_memo(ticker: str, user_id: str | None = None) -> dict:
         text = msg.content[0].text
         parsed = _parse_memo(text)
 
+        # Guardrail 검증 (Amodei + LeCun)
+        full_body = f"{parsed['bull']}\n{parsed['bear']}\n{parsed['thesis']}"
+        bad_word, word = _has_forbidden_words(full_body)
+        valid_rcepts = {d.rcept_no for d in ctx["disclosures"]}
+        cite_ok, fake_rcepts = _validate_citations(full_body, valid_rcepts)
+        warnings = []
+        if bad_word:
+            warnings.append(f"forbidden_word:{word}")
+        if not cite_ok:
+            warnings.append(f"fake_rcept_no:{','.join(fake_rcepts)}")
+
+        if warnings and _retry < 2:
+            logger.warning(f"memo guardrail retry {_retry + 1}: {warnings}")
+            # 재귀 재시도 (재생성 강제)
+            return await generate_memo(ticker, user_id=user_id, _retry=_retry + 1)
+
         # 메모 엔티티 upsert
         memo_res = await db.execute(
             select(DDMemo).where(DDMemo.ticker == ticker, DDMemo.user_id == user_id).limit(1)
@@ -137,6 +178,10 @@ async def generate_memo(ticker: str, user_id: str | None = None) -> dict:
         sources = [{"type": "disclosure", "rcept_no": d.rcept_no} for d in ctx["disclosures"]]
         sources += [{"type": "news", "url": n.url} for n in ctx["news"]]
 
+        # 감사 3튜플 (Amodei): user_id + key_owner + model
+        key_owner = user_id if user_id else "server"  # BYOK 여부에 따라 분기 (Phase 2 확장)
+        generated_by = f"claude-sonnet-4-6|key={key_owner}|warn={','.join(warnings) or 'none'}"
+
         version = DDMemoVersion(
             memo_id=memo.id,
             version=next_ver,
@@ -144,7 +189,7 @@ async def generate_memo(ticker: str, user_id: str | None = None) -> dict:
             bear=parsed["bear"],
             thesis=parsed["thesis"],
             sources=json.dumps(sources, ensure_ascii=False),
-            generated_by="claude-sonnet-4-6",
+            generated_by=generated_by,
         )
         db.add(version)
         await db.flush()

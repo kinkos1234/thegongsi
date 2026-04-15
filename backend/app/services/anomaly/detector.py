@@ -57,6 +57,7 @@ async def _llm_refine(report_nm: str, base_severity: str, base_reason: str) -> t
                     f"이어서 한국어 한 문장 이유.\n\n"
                     f"제목: {report_nm}\n"
                     f"규칙 판정: {base_severity} ({base_reason})\n\n"
+                    f"severity 선택지: high / med / low / **uncertain**(정보 부족).\n"
                     f"형식: <severity>|<한국어 이유 한 문장>"
                 ),
             }],
@@ -65,7 +66,7 @@ async def _llm_refine(report_nm: str, base_severity: str, base_reason: str) -> t
         if "|" in text:
             sev, reason = text.split("|", 1)
             sev = sev.strip().lower()
-            if sev in ("low", "med", "high"):
+            if sev in ("low", "med", "high", "uncertain"):
                 return sev, reason.strip()
     except Exception as e:
         logger.warning(f"LLM refine failed: {e}")

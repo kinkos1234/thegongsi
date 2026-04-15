@@ -8,9 +8,18 @@ export function DDMemoCard({ memo }: { memo: DDMemo }) {
         <p className="mono text-[12px] text-fg-3">v{memo.version}</p>
       </header>
 
-      <Section title="BULL" body={memo.bull} tone="accent" />
-      <Section title="BEAR" body={memo.bear} tone="down" />
-      <Section title="THESIS" body={memo.thesis} tone="fg" />
+      {/* Rams: BULL/BEAR side-by-side, THESIS는 결론이므로 serif 확대 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+        <SideBlock title="BULL" body={memo.bull} tone="accent" />
+        <SideBlock title="BEAR" body={memo.bear} tone="down" />
+      </div>
+
+      <section className="border-t border-border/50 pt-6">
+        <h3 className="mono text-[11px] tracking-wider uppercase mb-3 text-fg-3">THESIS</h3>
+        <p className="font-serif text-[20px] leading-[1.5] text-fg whitespace-pre-wrap">
+          {memo.thesis}
+        </p>
+      </section>
 
       <p className="mt-8 text-[12px] text-fg-3">
         ※ 본 메모는 AI가 공시·뉴스만을 근거로 생성한 정보로, 투자자문이 아닙니다.
@@ -19,20 +28,20 @@ export function DDMemoCard({ memo }: { memo: DDMemo }) {
   );
 }
 
-function Section({
+function SideBlock({
   title,
   body,
   tone,
 }: {
   title: string;
   body: string;
-  tone: "accent" | "down" | "fg";
+  tone: "accent" | "down";
 }) {
-  const color = tone === "accent" ? "text-accent" : tone === "down" ? "text-down" : "text-fg";
+  const color = tone === "accent" ? "text-accent" : "text-down";
   return (
-    <section className="mb-8 last:mb-0">
-      <h3 className={`mono text-[12px] tracking-wider uppercase mb-3 ${color}`}>{title}</h3>
-      <div className="text-[15px] leading-[1.7] text-fg-2 whitespace-pre-wrap">{body}</div>
-    </section>
+    <div>
+      <h3 className={`mono text-[11px] tracking-wider uppercase mb-3 ${color}`}>{title}</h3>
+      <div className="text-[14px] leading-[1.65] text-fg-2 whitespace-pre-wrap">{body}</div>
+    </div>
   );
 }
