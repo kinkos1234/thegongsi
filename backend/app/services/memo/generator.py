@@ -1,0 +1,161 @@
+"""AI DD 메모 생성 파이프라인.
+
+입력: ticker
+컨텍스트 수집 순서:
+1. Company 기본 정보
+2. 최근 90일 공시 (요약 + severity)
+3. 최근 30일 뉴스 (top 20, sentiment 가중)
+4. (Phase 2) 실적 콜 transcript
+
+출력: bull / bear / thesis 세 블록 + sources.json
+
+버전 관리: DDMemo 1건 당 N개 DDMemoVersion 누적.
+"""
+import json
+import logging
+from datetime import datetime, timedelta
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
+from app.database import async_session
+from app.models.tables import Company, DDMemo, DDMemoVersion, Disclosure, NewsItem
+
+logger = logging.getLogger(__name__)
+
+MEMO_SYSTEM = """너는 한국 주식을 분석하는 DD(Due Diligence) 애널리스트다.
+주어진 컨텍스트(공시/뉴스/기본정보)만을 근거로 bull/bear/thesis 3섹션 한국어 메모를 작성한다.
+
+규칙:
+- 각 주장 뒤에 [출처: rcept_no=YYYYxxxx] 형식으로 각주.
+- 근거 없는 가격 타겟·매수추천 금지 (정보 제공만).
+- "투자자문 아님" 문구 하단 자동 삽입.
+- 출력 형식 엄수: 섹션 마커 `## BULL`, `## BEAR`, `## THESIS`.
+"""
+
+
+async def _gather_context(ticker: str, db: AsyncSession) -> dict:
+    company_res = await db.execute(select(Company).where(Company.ticker == ticker))
+    company = company_res.scalar_one_or_none()
+
+    since = (datetime.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
+    disc_res = await db.execute(
+        select(Disclosure)
+        .where(Disclosure.ticker == ticker, Disclosure.rcept_dt >= since)
+        .order_by(Disclosure.rcept_dt.desc())
+        .limit(30)
+    )
+    disclosures = disc_res.scalars().all()
+
+    news_cutoff = datetime.utcnow() - timedelta(days=30)
+    news_res = await db.execute(
+        select(NewsItem)
+        .where(NewsItem.ticker == ticker, NewsItem.published_at >= news_cutoff)
+        .order_by(NewsItem.published_at.desc())
+        .limit(20)
+    )
+    news = news_res.scalars().all()
+
+    return {"company": company, "disclosures": disclosures, "news": news}
+
+
+def _format_context(ctx: dict) -> str:
+    c = ctx["company"]
+    lines = []
+    if c:
+        lines.append(f"# 기업: {c.name_ko} ({c.ticker}) · {c.market} · {c.sector or '-'}")
+    lines.append("\n## 최근 공시")
+    for d in ctx["disclosures"]:
+        sev = f"[{d.anomaly_severity}]" if d.anomaly_severity else ""
+        lines.append(f"- {d.rcept_dt} {sev} {d.report_nm} (rcept_no={d.rcept_no})")
+    lines.append("\n## 최근 뉴스")
+    for n in ctx["news"]:
+        lines.append(f"- {n.published_at.date()} {n.source}: {n.title}")
+    return "\n".join(lines)
+
+
+def _parse_memo(text: str) -> dict:
+    sections = {"bull": "", "bear": "", "thesis": ""}
+    current = None
+    for line in text.splitlines():
+        s = line.strip().upper()
+        if s.startswith("## BULL"):
+            current = "bull"
+            continue
+        if s.startswith("## BEAR"):
+            current = "bear"
+            continue
+        if s.startswith("## THESIS"):
+            current = "thesis"
+            continue
+        if current:
+            sections[current] += line + "\n"
+    return {k: v.strip() for k, v in sections.items()}
+
+
+async def generate_memo(ticker: str, user_id: str | None = None) -> dict:
+    """신규 DDMemoVersion 생성."""
+    if not settings.anthropic_api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY required")
+
+    from anthropic import AsyncAnthropic
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+    async with async_session() as db:
+        ctx = await _gather_context(ticker, db)
+        if not ctx["company"]:
+            raise ValueError(f"Company not found: {ticker}")
+        prompt = _format_context(ctx)
+
+        msg = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4000,
+            system=MEMO_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = msg.content[0].text
+        parsed = _parse_memo(text)
+
+        # 메모 엔티티 upsert
+        memo_res = await db.execute(
+            select(DDMemo).where(DDMemo.ticker == ticker, DDMemo.user_id == user_id).limit(1)
+        )
+        memo = memo_res.scalar_one_or_none()
+        if not memo:
+            memo = DDMemo(ticker=ticker, user_id=user_id)
+            db.add(memo)
+            await db.flush()
+
+        # 다음 버전 번호
+        ver_res = await db.execute(
+            select(DDMemoVersion).where(DDMemoVersion.memo_id == memo.id).order_by(DDMemoVersion.version.desc()).limit(1)
+        )
+        prev = ver_res.scalar_one_or_none()
+        next_ver = (prev.version + 1) if prev else 1
+
+        sources = [{"type": "disclosure", "rcept_no": d.rcept_no} for d in ctx["disclosures"]]
+        sources += [{"type": "news", "url": n.url} for n in ctx["news"]]
+
+        version = DDMemoVersion(
+            memo_id=memo.id,
+            version=next_ver,
+            bull=parsed["bull"],
+            bear=parsed["bear"],
+            thesis=parsed["thesis"],
+            sources=json.dumps(sources, ensure_ascii=False),
+            generated_by="claude-sonnet-4-6",
+        )
+        db.add(version)
+        await db.flush()
+        memo.latest_version_id = version.id
+        await db.commit()
+
+        return {
+            "memo_id": memo.id,
+            "version_id": version.id,
+            "version": next_ver,
+            "bull": parsed["bull"],
+            "bear": parsed["bear"],
+            "thesis": parsed["thesis"],
+        }

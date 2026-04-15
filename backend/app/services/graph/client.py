@@ -1,0 +1,45 @@
+"""Neo4j 드라이버 래퍼.
+
+설정: NEO4J_URL, NEO4J_USER, NEO4J_PASSWORD (app.config.settings).
+comad-brain(7688)과 별도 인스턴스 사용 권장 (7687).
+"""
+import logging
+from contextlib import asynccontextmanager
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+_driver = None
+
+
+def get_driver():
+    """지연 초기화 싱글턴. 테스트 시 monkeypatch 가능."""
+    global _driver
+    if _driver is None:
+        from neo4j import AsyncGraphDatabase
+        _driver = AsyncGraphDatabase.driver(
+            settings.neo4j_url,
+            auth=(settings.neo4j_user, settings.neo4j_password),
+        )
+    return _driver
+
+
+@asynccontextmanager
+async def session():
+    driver = get_driver()
+    async with driver.session() as s:
+        yield s
+
+
+async def run_cypher(query: str, params: dict | None = None) -> list[dict]:
+    async with session() as s:
+        result = await s.run(query, params or {})
+        return [dict(record) for record in await result.data()]
+
+
+async def close():
+    global _driver
+    if _driver is not None:
+        await _driver.close()
+        _driver = None

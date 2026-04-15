@@ -1,5 +1,11 @@
 # Data Model
 
+> **Phase 1 scaffold 현황 (2026-04-15):** `backend/app/models/tables.py`는 이 문서의 **간소화 서브셋**이다.
+> - 구현됨: User, WatchListItem, AlertConfig, AlertHistory, Company, Disclosure, DDMemo, DDMemoVersion, NewsItem
+> - **미구현 (Phase 1 중 추가):** AnomalySignal은 Disclosure에 인라인 컬럼(`anomaly_severity`, `anomaly_reason`)으로 시작, 규모 커지면 분리. QASession/QATurn, EarningsEvent, Embedding(pgvector), BYOK 필드(User.byok_*), Person/Product(Neo4j)는 Phase 1 후반에 추가.
+> - ID: UUID 문자열 12자 prefix(`uuid4().hex[:12]`) 사용 — 아래 스펙의 `uuid PK`와 등가.
+> - Portfolio/PortfolioHolding는 stock-strategy에서 이식 예정 (Phase 2).
+
 ## 관계도
 
 ```

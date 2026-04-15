@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: comad
+      POSTGRES_PASSWORD: comad
+      POSTGRES_DB: comad_stock
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  neo4j:
+    image: neo4j:5
+    environment:
+      NEO4J_AUTH: neo4j/comadstock
+      NEO4J_server_memory_heap_initial__size: 1G
+      NEO4J_server_memory_heap_max__size: 2G
+    ports:
+      - "7687:7687"
+      - "7474:7474"
+    volumes:
+      - neo4j-data:/data
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    ports:
+      - "8888:8888"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - postgres
+      - neo4j
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8888
+    ports:
+      - "3333:3333"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pg-data:
+  neo4j-data:
