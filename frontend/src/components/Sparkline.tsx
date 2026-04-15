@@ -6,9 +6,24 @@ type Point = { d: string; c: number };
 
 export function Sparkline({ data, up }: { data: Point[]; up: boolean }) {
   if (!data || data.length === 0) return <div className="h-[160px] text-fg-3 flex items-center">데이터 없음</div>;
+
+  const closes = data.map((p) => p.c);
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const isHalted = min === max;  // 전 기간 동일가 = 거래정지 의심
+
+  if (isHalted) {
+    return (
+      <div className="h-[160px] border border-sev-med/30 bg-bg-2 flex flex-col items-center justify-center gap-2">
+        <p className="mono text-[12px] text-sev-med uppercase tracking-wider">거래정지 의심</p>
+        <p className="text-[13px] text-fg-2">
+          최근 {data.length}거래일 가격 변동 없음 ({min.toLocaleString("ko-KR")}원 고정)
+        </p>
+      </div>
+    );
+  }
+
   const color = up ? "var(--color-accent)" : "var(--color-down)";
-  const min = Math.min(...data.map((p) => p.c));
-  const max = Math.max(...data.map((p) => p.c));
   return (
     <div className="h-[160px] w-full">
       <ResponsiveContainer width="100%" height="100%">
