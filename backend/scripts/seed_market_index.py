@@ -25,27 +25,41 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("seed-market")
 
 
-def _fetch_index_tickers(index_code: str) -> list[str]:
-    """pykrx로 인덱스 구성 종목 리스트."""
+def _fetch_top_by_market_cap(market: str, top: int) -> list[str]:
+    """KOSPI/KOSDAQ 시총 상위 N 종목. pykrx 실패 시 DART corp_list로 fallback.
+
+    pykrx는 KRX OTP/크롤링 기반이라 종종 실패 — DART는 API이라 안정적.
+    """
     from pykrx import stock
-    from datetime import datetime
-    today = datetime.now().strftime("%Y%m%d")
-    try:
-        tickers = stock.get_index_portfolio_deposit_file(index_code, today)
-    except Exception:
-        # fallback: 최근 영업일
-        tickers = stock.get_index_portfolio_deposit_file(index_code)
-    return list(tickers)
+    from datetime import datetime, timedelta
+    for i in range(1, 8):  # 어제부터 최대 7일 과거
+        d = (datetime.now() - timedelta(days=i)).strftime("%Y%m%d")
+        try:
+            caps = stock.get_market_cap_by_ticker(d, market=market)
+            if caps is not None and not caps.empty:
+                caps = caps.sort_values("시가총액", ascending=False).head(top)
+                return list(caps.index)
+        except Exception:
+            continue
+    return []
 
 
-def _fetch_sector_top(market: str, top_per_sector: int) -> list[str]:
-    """pykrx 시총 상위로 sector 대체 (pykrx에 직접 sector API 없음)."""
-    from pykrx import stock
-    from datetime import datetime
-    today = datetime.now().strftime("%Y%m%d")
-    caps = stock.get_market_cap_by_ticker(today, market=market)
-    caps = caps.sort_values("시가총액", ascending=False).head(top_per_sector * 20)
-    return list(caps.index)
+def _fetch_from_dart_corp_list(market_cls: str, top: int) -> list[str]:
+    """DART corp_list 기반 fallback. market_cls: 'Y'=KOSPI, 'K'=KOSDAQ.
+
+    시총 정보 없어 단순 상장사 상위 top개 (수기 정렬 불가) — 시총 랭킹 대신
+    전체 커버리지 샘플. pykrx 실패 시 대안.
+    """
+    from app.services.collectors.dart import _get_corp_list
+    corp_list = _get_corp_list()
+    filtered = [
+        c for c in corp_list
+        if getattr(c, "corp_cls", "") == market_cls
+        and getattr(c, "stock_code", None)
+    ]
+    # corp_code 기준 정렬 (시총 정보 없음) → 상위 top개
+    filtered.sort(key=lambda c: c.corp_code)
+    return [c.stock_code for c in filtered[:top]]
 
 
 async def seed(kospi: bool, kosdaq: bool, sector_rep: int):
@@ -58,17 +72,25 @@ async def seed(kospi: bool, kosdaq: bool, sector_rep: int):
 
     all_tickers: set[str] = set()
     if kospi:
-        t = _fetch_index_tickers("1028")
-        logger.info(f"KOSPI 200: {len(t)} tickers")
+        t = _fetch_top_by_market_cap("KOSPI", 200)
+        if not t:
+            logger.warning("pykrx KOSPI 실패 — DART corp_list fallback")
+            t = _fetch_from_dart_corp_list("Y", 300)
+        logger.info(f"KOSPI: {len(t)} tickers")
         all_tickers.update(t)
     if kosdaq:
-        t = _fetch_index_tickers("2203")
-        logger.info(f"KOSDAQ 150: {len(t)} tickers")
+        t = _fetch_top_by_market_cap("KOSDAQ", 150)
+        if not t:
+            logger.warning("pykrx KOSDAQ 실패 — DART corp_list fallback")
+            t = _fetch_from_dart_corp_list("K", 300)
+        logger.info(f"KOSDAQ: {len(t)} tickers")
         all_tickers.update(t)
     if sector_rep > 0:
-        # pykrx에 sector API 부재 — 시총 상위로 대체 커버리지
-        t = _fetch_sector_top("KOSPI", sector_rep) + _fetch_sector_top("KOSDAQ", sector_rep)
-        logger.info(f"Market cap top ({sector_rep}×20): {len(t)} tickers")
+        # 추가 커버리지: 각 시장 시총 상위 N*20 (섹터 분산)
+        t = _fetch_top_by_market_cap("KOSPI", sector_rep * 20) + _fetch_top_by_market_cap(
+            "KOSDAQ", sector_rep * 20
+        )
+        logger.info(f"Sector-rep extended: +{len(t)} tickers")
         all_tickers.update(t)
 
     # DART corp_list 매칭

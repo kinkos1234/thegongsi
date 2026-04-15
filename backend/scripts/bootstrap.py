@@ -43,7 +43,7 @@ async def bootstrap(days: int, seed: bool):
     from app.services.anomaly.detector import scan_new_disclosures
 
     # 1. DB/그래프 스키마
-    logger.info("1/5 init DB + Neo4j schema")
+    logger.info("1/6 init DB + Neo4j schema")
     await init_db()
     try:
         await init_schema()
@@ -52,7 +52,7 @@ async def bootstrap(days: int, seed: bool):
 
     # 2. seed graph (선택)
     if seed:
-        logger.info("2/5 seed graph (HBM 공급망 토이)")
+        logger.info("2/6 seed graph (HBM 공급망 토이)")
         try:
             from app.services.graph.client import run_cypher
             from scripts.seed_graph import COMPANIES, PERSONS, RELATIONSHIPS
@@ -84,11 +84,20 @@ async def bootstrap(days: int, seed: bool):
         except Exception as e:
             logger.warning(f"seed_graph 실패 (계속 진행): {e}")
 
-    # 3. DART 시장 전체 N일 백필
+    # 3. Company 테이블 자동 seed (KOSPI 200 + KOSDAQ 150, pykrx + dart-fss)
+    logger.info("3/6 seed Company (KOSPI 200 + KOSDAQ 150 via pykrx)")
+    try:
+        from scripts.seed_market_index import seed as seed_market
+        r = await seed_market(kospi=True, kosdaq=True, sector_rep=0)
+        logger.info(f"Company seed: {r}")
+    except Exception as e:
+        logger.warning(f"Company seed 실패 (계속 진행): {e}")
+
+    # 4. DART 시장 전체 N일 백필
     now = datetime.now(KST)
     end_de = now.strftime("%Y%m%d")
     bgn_de = (now - timedelta(days=days)).strftime("%Y%m%d")
-    logger.info(f"3/5 DART market fetch {bgn_de}~{end_de} (days={days}, max 2000)")
+    logger.info(f"4/6 DART market fetch {bgn_de}~{end_de} (days={days}, max 2000)")
     loop = asyncio.get_event_loop()
     try:
         rows = await loop.run_in_executor(None, _fetch_filings_sync, bgn_de, end_de, 2000)
@@ -114,15 +123,15 @@ async def bootstrap(days: int, seed: bool):
         await db.commit()
     logger.info(f"Postgres: {inserted} disclosures inserted")
 
-    # 4. KRX 샘플 시세
+    # 5. KRX 샘플 시세
     try:
-        logger.info("4/5 KRX sample quotes")
+        logger.info("5/6 KRX sample quotes")
         await fetch_kospi_quotes()
     except Exception as e:
         logger.warning(f"KRX fetch 실패 (계속): {e}")
 
-    # 5. Anomaly scan + graph sync
-    logger.info("5/5 anomaly scan (LLM Haiku) + Neo4j sync — 수 분 소요")
+    # 6. Anomaly scan + graph sync
+    logger.info("6/6 anomaly scan (LLM Haiku) + Neo4j sync — 수 분 소요")
     try:
         anomaly = await scan_new_disclosures()
         logger.info(f"anomaly: {anomaly}")

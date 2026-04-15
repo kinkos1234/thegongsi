@@ -69,6 +69,31 @@ severity: 'high','med','low','uncertain'. rcept_dt: 'YYYY-MM-DD' 문자열(date(
 
 TOOLS = [
     {
+        "name": "search_companies",
+        "description": (
+            "Postgres Company 테이블을 name_ko·sector 부분일치로 검색. "
+            "섹터·업종 기반 질문('항공사', '해운사', '유가 민감 업종')에 적합. "
+            "Disclosure가 없는 회사도 회사명·섹터·시장 정보 반환."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "keywords": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "회사명/섹터 부분일치 (예: ['항공', '해운', '정유'])",
+                },
+                "market": {
+                    "type": "string",
+                    "enum": ["KOSPI", "KOSDAQ"],
+                    "description": "시장 필터 (선택)",
+                },
+                "limit": {"type": "integer", "default": 25},
+            },
+            "required": ["keywords"],
+        },
+    },
+    {
         "name": "run_cypher",
         "description": (
             "Neo4j 그래프에 READ-ONLY Cypher 쿼리 실행. 관계형·구조적 질문에 사용. "
@@ -170,9 +195,45 @@ async def _tool_search_disclosures(args: dict) -> Any:
     }
 
 
+async def _tool_search_companies(args: dict) -> Any:
+    keywords = args.get("keywords", [])
+    if not keywords:
+        return {"error": "keywords required"}
+    market = args.get("market")
+    limit = min(int(args.get("limit", 25)), 100)
+
+    from app.models.tables import Company
+    async with async_session() as db:
+        from sqlalchemy import or_, func as sa_func
+        q = select(Company)
+        clauses = []
+        for k in keywords:
+            kl = f"%{k.lower()}%"
+            clauses.append(sa_func.lower(Company.name_ko).like(kl))
+            clauses.append(sa_func.lower(sa_func.coalesce(Company.sector, "")).like(kl))
+        q = q.where(or_(*clauses))
+        if market:
+            q = q.where(Company.market == market)
+        q = q.limit(limit)
+        rows = (await db.execute(q)).scalars().all()
+    return {
+        "count": len(rows),
+        "rows": [
+            {
+                "ticker": c.ticker,
+                "name_ko": c.name_ko,
+                "sector": c.sector,
+                "market": c.market,
+            }
+            for c in rows
+        ],
+    }
+
+
 TOOL_DISPATCH = {
     "run_cypher": _tool_run_cypher,
     "search_disclosures": _tool_search_disclosures,
+    "search_companies": _tool_search_companies,
 }
 
 
