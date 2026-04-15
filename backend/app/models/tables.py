@@ -132,6 +132,48 @@ class DDMemoVersion(Base):
     memo: Mapped["DDMemo"] = relationship(back_populates="versions")
 
 
+class EarningsEvent(Base):
+    __tablename__ = "earnings_events"
+
+    id: Mapped[str] = mapped_column(String(12), primary_key=True, default=gen_id)
+    ticker: Mapped[str] = mapped_column(String(10), index=True)
+    quarter: Mapped[str] = mapped_column(String(8))  # 2026Q1
+    scheduled_date: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD
+    reported_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    revenue: Mapped[float | None] = mapped_column(Float, nullable=True)  # 억
+    op_profit: Mapped[float | None] = mapped_column(Float, nullable=True)  # 억
+    net_profit: Mapped[float | None] = mapped_column(Float, nullable=True)  # 억
+    source: Mapped[str] = mapped_column(String(30), default="dart")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FinancialSnapshot(Base):
+    __tablename__ = "financial_snapshots"
+
+    id: Mapped[str] = mapped_column(String(12), primary_key=True, default=gen_id)
+    ticker: Mapped[str] = mapped_column(String(10), index=True)
+    date: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD
+    per: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pbr: Mapped[float | None] = mapped_column(Float, nullable=True)
+    eps: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bps: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dividend_yield: Mapped[float | None] = mapped_column(Float, nullable=True)
+    market_cap: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 억 단위로 저장
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ShortSellingSnapshot(Base):
+    __tablename__ = "short_selling_snapshots"
+
+    id: Mapped[str] = mapped_column(String(12), primary_key=True, default=gen_id)
+    ticker: Mapped[str] = mapped_column(String(10), index=True)
+    date: Mapped[str] = mapped_column(String(10), index=True)
+    volume: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    value: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 원
+    ratio: Mapped[float | None] = mapped_column(Float, nullable=True)  # 거래대금 대비 %
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class NewsItem(Base):
     __tablename__ = "news_items"
 

@@ -59,6 +59,14 @@ export default function AskPage() {
         </button>
       </form>
 
+      {loading && (
+        <div className="mt-12 space-y-3">
+          <div className="h-[24px] bg-bg-2 animate-pulse w-3/4" />
+          <div className="h-[24px] bg-bg-2 animate-pulse w-2/3" />
+          <div className="h-[24px] bg-bg-2 animate-pulse w-1/2" />
+        </div>
+      )}
+
       {err && <p className="mt-8 text-[14px] text-sev-high">⚠ {err}</p>}
 
       {ans && (

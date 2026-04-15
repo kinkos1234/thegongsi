@@ -81,7 +81,14 @@ export default function WatchlistPage() {
       </form>
 
       <ul className="mt-12 border-t border-border/50">
-        {items.length === 0 && <li className="py-8 text-fg-3">아직 관심 종목이 없습니다.</li>}
+        {items.length === 0 && (
+          <li>
+            <div className="py-16 text-center">
+              <p className="font-serif text-[20px] text-fg-2">아직 관심 종목이 없습니다.</p>
+              <p className="mt-3 text-[13px] text-fg-3">상단 입력창에 6자리 종목코드(예: 005930)를 넣어 추가하세요.</p>
+            </div>
+          </li>
+        )}
         {items.map((i) => (
           <li key={i.ticker} className="flex items-center justify-between border-b border-border/50 py-4">
             <Link href={`/c/${i.ticker}`} className="mono text-[14px] hover:text-accent">

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ThemeToggle } from "./ThemeToggle";
 
 const TOKEN_KEY = "comad_stock_token";
 
@@ -64,6 +65,9 @@ export function NavBar() {
               login →
             </Link>
           )}
+          <li>
+            <ThemeToggle />
+          </li>
         </ul>
       </div>
     </nav>

@@ -1,36 +1,69 @@
 export default function Home() {
   return (
-    <main className="mx-auto max-w-[720px] px-8 py-32">
-      <p className="mono text-fg-3 text-[13px] tracking-wider">COMAD-STOCK · v0.1 · OSS</p>
+    <>
+      <section className="mx-auto max-w-[720px] px-8 pt-32 pb-40">
+        <p className="mono text-fg-3 text-[13px] tracking-wider">COMAD-STOCK · v0.1 · OSS</p>
 
-      <h1 className="mt-8 font-serif text-[72px] leading-[1.05] tracking-[-0.02em]">
-        한국 주식,
-        <br />
-        <span className="text-fg-2">진지한 리서치로.</span>
-      </h1>
+        <h1 className="mt-8 font-serif text-[72px] leading-[1.05] tracking-[-0.02em]">
+          한국 주식,
+          <br />
+          <span className="text-fg-2">진지한 리서치로.</span>
+        </h1>
 
-      <p className="mt-12 text-[17px] leading-[1.7] text-fg-2">
-        DART 공시를 AI가 한국어로 요약하고, 이상징후를 플래그하며,
-        GraphRAG로 공급망·경쟁사·인사이더를 이어 붙입니다.
-        네이버 증권을 두 세대 앞서, 광고 없이.
-      </p>
+        <p className="mt-12 text-[17px] leading-[1.7] text-fg-2">
+          DART 공시를 AI가 한국어로 요약하고, 이상징후를 플래그하며,
+          GraphRAG로 공급망·경쟁사·인사이더를 이어 붙입니다.
+          네이버 증권을 두 세대 앞서, 광고 없이.
+        </p>
 
-      <div className="mt-16 flex items-center gap-6 text-[14px]">
-        <a
-          href="https://github.com/"
-          className="mono border-b border-accent text-accent hover:bg-accent-dim hover:text-fg px-1 py-0.5 transition-colors"
-        >
-          github ↗
-        </a>
-        <span className="text-fg-3 mono">MIT · BYOK · self-hostable</span>
-      </div>
+        <div className="mt-16 flex items-center gap-6 text-[14px]">
+          <a href="/ask" className="mono border-b border-accent text-accent hover:bg-accent-dim hover:text-fg px-1 py-0.5 transition-colors">
+            try Q&amp;A →
+          </a>
+          <span className="text-fg-3 mono">MIT · BYOK · self-hostable</span>
+        </div>
+      </section>
 
-      <div className="mt-40 grid grid-cols-3 gap-12 border-t border-border pt-12">
-        <Feature label="DART 공시" value="전수 수집·요약" />
-        <Feature label="GraphRAG Q&A" value="자연어 → Cypher" />
-        <Feature label="AI DD 메모" value="bull/bear/thesis" />
-      </div>
-    </main>
+      <section className="border-t border-border/50">
+        <div className="mx-auto max-w-[1080px] px-8 py-32 grid grid-cols-1 md:grid-cols-2 gap-16">
+          <div>
+            <p className="mono text-[12px] text-fg-3 uppercase tracking-wider">왜 DART인가</p>
+            <h2 className="mt-4 font-serif text-[40px] leading-[1.15] tracking-[-0.01em]">
+              공시는 <span className="text-fg-2">원재료</span>,<br />
+              문제는 <span className="text-fg-2">해석</span>.
+            </h2>
+          </div>
+          <div className="space-y-8 pt-4">
+            <p className="text-[16px] leading-[1.7] text-fg-2">
+              DART에는 연 100만건의 공시가 오른다. 대부분은 루틴이지만, 그 사이 상장폐지·감사거절·최대주주변경처럼 투자자를 직격할 신호가 섞여 있다.
+            </p>
+            <p className="text-[16px] leading-[1.7] text-fg-2">
+              comad-stock은 규칙(11개 키워드)으로 1차 필터, Claude Haiku로 severity를 판정합니다. 그리고 GraphRAG로 “HBM 공급망 중 이상 공시” 같은 다단계 질의를 풉니다.
+            </p>
+            <p className="mono text-[12px] text-fg-3 uppercase tracking-wider">참고</p>
+            <ul className="text-[14px] text-fg-2 space-y-2">
+              <li>· Fey · Seeking Alpha · Hindenburg Research</li>
+              <li>· Open source, Korean-first, ad-free</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-border/50">
+        <div className="mx-auto max-w-[1080px] px-8 py-24 grid grid-cols-1 md:grid-cols-3 gap-12">
+          <Feature label="DART 공시" value="전수 수집 · 한국어 요약 · severity 플래그" />
+          <Feature label="GraphRAG" value="자연어 → Cypher → 한국어 답변 · 2-hop" />
+          <Feature label="DD 메모" value="bull / bear / thesis · 버전 히스토리" />
+        </div>
+      </section>
+
+      <footer className="border-t border-border/50 py-12">
+        <div className="mx-auto max-w-[1080px] px-8 flex items-baseline justify-between">
+          <p className="mono text-[12px] text-fg-3">© 2026 comad-stock · MIT</p>
+          <p className="mono text-[12px] text-fg-3">투자자문 아님 · 정보 제공만</p>
+        </div>
+      </footer>
+    </>
   );
 }
 
@@ -38,7 +71,7 @@ function Feature({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="mono text-fg-3 text-[12px] tracking-wider uppercase">{label}</p>
-      <p className="mt-2 text-[15px] text-fg">{value}</p>
+      <p className="mt-3 text-[15px] leading-[1.6] text-fg">{value}</p>
     </div>
   );
 }
