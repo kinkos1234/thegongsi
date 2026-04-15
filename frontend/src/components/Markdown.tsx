@@ -11,11 +11,15 @@ import type { ReactNode } from "react";
 export function Markdown({ content, tone = "body" }: { content: string; tone?: "body" | "serif" }) {
   const isSerif = tone === "serif";
   return (
-    <div className={isSerif ? "font-serif text-[18px] leading-[1.6]" : "text-[14px] leading-[1.65] text-fg-2"}>
+    <div className={isSerif ? "font-serif text-[18px] leading-[1.7]" : "text-[14px] leading-[1.65] text-fg-2"}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          p: ({ children }) => <p className="mb-3 last:mb-0">{renderCitationsInChildren(children)}</p>,
+          p: ({ children }) => (
+            <p className={isSerif ? "mb-5 last:mb-0" : "mb-3 last:mb-0"}>
+              {renderCitationsInChildren(children)}
+            </p>
+          ),
           strong: ({ children }) => <strong className="text-fg font-semibold">{children}</strong>,
           em: ({ children }) => <em className="italic">{children}</em>,
           ul: ({ children }) => <ul className="list-disc ml-5 mb-3 space-y-1.5">{children}</ul>,

@@ -55,7 +55,11 @@ MEMO_TOOL = {
             },
             "thesis": {
                 "type": "string",
-                "description": "투자 관점 종합 결론. 2~4문단 또는 체크리스트. Markdown.",
+                "description": (
+                    "투자 관점 종합 결론. **2~4 문단으로 나누어 작성**. "
+                    "각 문단은 2~3 문장. 문단 사이는 빈 줄(`\\n\\n`)로 명확히 분리. "
+                    "장문 한 덩어리 금지 — 편집자가 읽기 좋게 호흡 조절."
+                ),
             },
         },
         "required": ["bull", "bear", "thesis"],
