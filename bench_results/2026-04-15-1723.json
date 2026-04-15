@@ -1,0 +1,90 @@
+{
+  "timestamp": "2026-04-15T08:23:45.130132",
+  "total": 8,
+  "passed": 0,
+  "pass_rate": 0.0,
+  "avg_recall": 0.0,
+  "avg_precision": 0.0,
+  "results": [
+    {
+      "id": "samsung-leader",
+      "category": "governance",
+      "recall": 0.0,
+      "precision": 0.0,
+      "min_recall": 1.0,
+      "min_precision": 1.0,
+      "passed": false,
+      "cypher": "MATCH (p:Person)-[:LEADS]->(c:Company {name_ko: '삼성전자'})\nRETURN p.name_ko, p.role, p.id"
+    },
+    {
+      "id": "sk-leader",
+      "category": "governance",
+      "recall": 0.0,
+      "precision": 0.0,
+      "min_recall": 1.0,
+      "min_precision": 1.0,
+      "passed": false,
+      "cypher": "MATCH (p:Person)-[:LEADS]->(c:Company)\nWHERE c.name_ko = 'SK하이닉스' AND p.role = '회장'\nRETURN p.name_ko AS name, p.role AS role"
+    },
+    {
+      "id": "leads-any",
+      "category": "governance",
+      "recall": 0.0,
+      "precision": 0.0,
+      "min_recall": 1.0,
+      "min_precision": 0.5,
+      "passed": false,
+      "cypher": "MATCH (p:Person {name_ko: '이재용'})-[:LEADS]->(c:Company)\nRETURN p.name_ko AS person, c.name_ko AS company, c.corp_code AS corp_code, c.ticker AS ticker, c.sector AS sector"
+    },
+    {
+      "id": "hbm-suppliers",
+      "category": "supply_chain",
+      "recall": 0.0,
+      "precision": 0.0,
+      "min_recall": 0.8,
+      "min_precision": 0.7,
+      "passed": false,
+      "cypher": "MATCH (supplier:Company)-[:SUPPLIES]->(customer:Company)\nWHERE customer.name_ko = 'SK하이닉스'\nRETURN supplier.corp_code, supplier.ticker, supplier.name_ko, supplier.sector, supplier.market\nLIMIT 25"
+    },
+    {
+      "id": "samsung-suppliers",
+      "category": "supply_chain",
+      "recall": 0.0,
+      "precision": 0.0,
+      "min_recall": 0.6,
+      "min_precision": 0.6,
+      "passed": false,
+      "cypher": "MATCH (supplier:Company)-[:SUPPLIES]->(samsung:Company {name_ko: '삼성전자'})\nWHERE supplier.market IS NOT NULL\nRETURN supplier.corp_code, supplier.ticker, supplier.name_ko, supplier.sector, supplier.market\nLIMIT 25"
+    },
+    {
+      "id": "hbm-chain",
+      "category": "supply_chain",
+      "recall": 0.0,
+      "precision": 0.0,
+      "min_recall": 0.7,
+      "min_precision": 0.5,
+      "passed": false,
+      "cypher": "MATCH (supplier:Company)-[:SUPPLIES]->(customer:Company)\nWHERE toLower(supplier.sector) CONTAINS 'hbm'\n   OR toLower(customer.sector) CONTAINS 'hbm'\n   OR toLower(supplier.name_ko) CONTAINS 'hbm'\n   OR toLower(customer.name_ko) CONTAINS 'hbm'\nRETURN DISTINCT supplier.name_ko AS supplier_name,\n                supplier.sector AS supplier_sector,\n                customer.name_ko AS customer_name,\n                customer.sector AS customer_sector\nLIMIT 25"
+    },
+    {
+      "id": "samsung-rivals",
+      "category": "competitor",
+      "recall": 0.0,
+      "precision": 0.0,
+      "min_recall": 1.0,
+      "min_precision": 0.8,
+      "passed": false,
+      "cypher": "MATCH (c:Company {name_ko: '삼성전자'})-[:COMPETES_WITH]->(rival:Company)\nWHERE rival.sector CONTAINS '메모리' OR rival.sector CONTAINS '반도체'\nRETURN rival.name_ko, rival.sector, rival.market\nLIMIT 25"
+    },
+    {
+      "id": "memory-duopoly",
+      "category": "competitor",
+      "recall": 0.0,
+      "precision": 0.0,
+      "min_recall": 1.0,
+      "min_precision": 0.9,
+      "passed": false,
+      "cypher": "MATCH (c:Company)\nWHERE c.sector CONTAINS '반도체' AND c.market IN ['KOSPI', 'KOSDAQ']\nRETURN c.corp_code, c.ticker, c.name_ko, c.sector, c.market\nLIMIT 25"
+    }
+  ]
+}

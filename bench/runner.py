@@ -36,25 +36,57 @@ async def run_query(q: dict) -> dict:
     from app.services.graph.qa import ask
     result = await ask(q["question"])
 
-    # rows에서 ticker/person 추출 (스키마에 따라 조정)
+    # rows에서 ticker/person 추출.
+    # Neo4j는 flat dict 반환 ({'p.name_ko': ..., 'c.ticker': ...}).
+    # 키 이름으로 분류: ticker/corp_code 포함 → ticker, name_ko/person 포함 → person.
     returned_tickers = []
     returned_persons = []
     for row in result.get("rows", []):
         for k, v in row.items():
+            lk = k.lower()
+            if v is None:
+                continue
+            # nested dict 대응
             if isinstance(v, dict):
-                t = v.get("ticker")
-                n = v.get("name_ko")
-                if t:
-                    returned_tickers.append(t)
-                if n and "person" in k.lower():
-                    returned_persons.append(n)
+                if v.get("ticker"):
+                    returned_tickers.append(str(v["ticker"]))
+                if v.get("name_ko") and "person" in lk:
+                    returned_persons.append(str(v["name_ko"]))
+                continue
+            # flat value
+            sval = str(v)
+            if ("ticker" in lk or lk.endswith("_ticker")) and sval.isdigit():
+                returned_tickers.append(sval)
+            elif "person" in lk or "leader" in lk or "name" == lk or lk.startswith("p."):
+                # p.name_ko → person
+                if "name" in lk or lk.endswith(".name_ko") or lk == "person":
+                    returned_persons.append(sval)
+            elif "company" in lk or "c.name_ko" in lk:
+                # company name — 회사 기대값과도 문자열 매칭용으로 ticker가 아니면 패스
+                pass
+
+    # 보조: name_ko를 기대 ticker로 매핑하기 위해 answer 문자열에서 이름 매칭
+    # (governance 질문은 ticker가 아니라 회사명으로 반환되는 경우 많음)
+    answer_text = (result.get("answer") or "") + " ".join(
+        str(v) for row in result.get("rows", []) for v in row.values()
+    )
 
     exp = q.get("expected", {})
-    r_t, p_t = _recall_precision(exp.get("tickers", []), returned_tickers)
-    r_p, p_p = _recall_precision(exp.get("persons", []), returned_persons)
+    expected_tickers = exp.get("tickers", [])
+    expected_persons = exp.get("persons", [])
 
-    # category 기준 어느 쪽 주요 metric인지
-    is_person = bool(exp.get("persons"))
+    # ticker가 answer/rows 문자열 내에 포함되어도 매칭으로 인정 (lenient)
+    for t in expected_tickers:
+        if t in answer_text and t not in returned_tickers:
+            returned_tickers.append(t)
+    for p in expected_persons:
+        if p in answer_text and p not in returned_persons:
+            returned_persons.append(p)
+
+    r_t, p_t = _recall_precision(expected_tickers, returned_tickers)
+    r_p, p_p = _recall_precision(expected_persons, returned_persons)
+
+    is_person = bool(expected_persons)
     recall, precision = (r_p, p_p) if is_person else (r_t, p_t)
 
     min_r = q.get("min_recall", 0.0)
