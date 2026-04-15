@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     # BYOK 미설정 사용자가 서버 키로 호출 가능한 일일 한도 (0=무제한)
     server_key_daily_limit_memo: int = 3
     server_key_daily_limit_ask: int = 20
+    # 쿼터 예외 — 호스트 본인/운영자 이메일 (쉼표 구분)
+    admin_emails: str = ""
+
+    @property
+    def admin_email_list(self) -> list[str]:
+        return [e.strip().lower() for e in self.admin_emails.split(",") if e.strip()]
     telegram_bot_token: str = ""
     slack_webhook_url: str = ""
     discord_webhook_url: str = ""

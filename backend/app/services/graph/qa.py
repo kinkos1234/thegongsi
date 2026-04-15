@@ -183,7 +183,7 @@ async def ask(question: str, user=None, max_hops: int = 6) -> dict:
     max_hops=6: 다중 도구 조합이 필요한 복합 질문(graph+disclosure filter 등) 대응.
     """
     from app.services.llm_client import get_anthropic_client
-    client, _owner = get_anthropic_client(user)
+    client, _owner = await get_anthropic_client(user, kind="ask")
 
     messages: list[dict[str, Any]] = [{"role": "user", "content": question}]
     tool_calls_made: list[dict[str, Any]] = []
