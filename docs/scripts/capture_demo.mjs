@@ -26,6 +26,13 @@ const shots = [
   { name: "05-company-dashboard", url: "/c/005930", viewport: { width: 1440, height: 1600 }, fullPage: true },
   { name: "06-404", url: "/c/000000", viewport: { width: 1440, height: 900 } },
   { name: "07-watchlist-empty", url: "/watchlist", viewport: { width: 1440, height: 900 } },
+  { name: "08-live-company-060240", url: "/c/060240", viewport: { width: 1440, height: 1600 }, fullPage: true },
+  { name: "09-live-ask-anomaly", url: "/ask", viewport: { width: 1440, height: 1400 }, action: async (page) => {
+      await page.fill('input[placeholder*="HBM"]', "최근 high severity 이상 공시가 있는 회사들과 공시 제목");
+      await page.click('button[type="submit"]');
+      await page.waitForSelector('.font-serif.text-\\[18px\\]', { timeout: 60000 });
+      await page.waitForTimeout(1000);
+    } },
 ];
 
 async function main() {
