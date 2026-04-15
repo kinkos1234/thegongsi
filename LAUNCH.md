@@ -94,6 +94,7 @@ DISCORD_WEBHOOK_URL=
 
 ## 🧪 배포 후 검증
 
+- [ ] **클린 clone 부트스트랩** — 새 머신에서 `git clone` → `scripts/bootstrap.py --seed` 8~10분 → 첫 방문 대시보드가 비어있지 않음 확인
 - [ ] 배포 서버에서 `/api/health` 200
 - [ ] `/ask` 한국어 질문 E2E 통과
 - [ ] `/c/005930` 삼성 대시보드 렌더 확인
