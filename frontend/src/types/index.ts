@@ -16,6 +16,8 @@ export type Disclosure = {
   date: string;
   summary: string | null;
   severity: Severity | null;
+  reason?: string | null;
+  raw_url?: string | null;
 };
 
 export type Quote = {

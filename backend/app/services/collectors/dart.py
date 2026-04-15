@@ -48,26 +48,39 @@ def _configure_dart():
     return dart
 
 
-def _fetch_filings_sync(bgn_de: str, end_de: str) -> list[dict]:
-    """동기 dart-fss 호출. 별도 스레드에서 실행 예정."""
+def _fetch_filings_sync(bgn_de: str, end_de: str, max_rows: int = 2000) -> list[dict]:
+    """전체 시장 일일 수집. 페이지네이션 버그 수정 (routine 필터는 daily에도 적용)."""
     dart = _configure_dart()
-    # 전체 유가증권·코스닥 공시 조회
-    search = dart.filings.search(
-        bgn_de=bgn_de,
-        end_de=end_de,
-        last_reprt_at="Y",
-        page_count=100,
-    )
-    rows = []
-    for f in search:
-        rows.append({
-            "rcept_no": f.rcept_no,
-            "corp_code": f.corp_code,
-            "ticker": (getattr(f, "stock_code", None) or "").strip(),
-            "report_nm": f.report_nm,
-            "rcept_dt": f.rcept_dt[:4] + "-" + f.rcept_dt[4:6] + "-" + f.rcept_dt[6:8],
-            "raw_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={f.rcept_no}",
-        })
+    rows: list[dict] = []
+    page_no = 1
+    while len(rows) < max_rows:
+        search = dart.filings.search(
+            bgn_de=bgn_de,
+            end_de=end_de,
+            last_reprt_at="Y",
+            page_count=100,
+            page_no=page_no,
+        )
+        page_items = list(search)
+        if not page_items:
+            break
+        for f in page_items:
+            if any(p in f.report_nm for p in ROUTINE_PATTERNS):
+                continue
+            rows.append({
+                "rcept_no": f.rcept_no,
+                "corp_code": f.corp_code,
+                "ticker": (getattr(f, "stock_code", None) or "").strip(),
+                "report_nm": f.report_nm,
+                "rcept_dt": f.rcept_dt[:4] + "-" + f.rcept_dt[4:6] + "-" + f.rcept_dt[6:8],
+                "raw_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={f.rcept_no}",
+            })
+            if len(rows) >= max_rows:
+                break
+        total_page = getattr(search, "total_page", page_no)
+        if page_no >= total_page:
+            break
+        page_no += 1
     return rows
 
 

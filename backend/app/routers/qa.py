@@ -5,8 +5,11 @@ from pydantic import BaseModel
 router = APIRouter()
 
 
+from pydantic import Field
+
+
 class AskRequest(BaseModel):
-    question: str
+    question: str = Field(min_length=2, max_length=1000)
 
 
 @router.post("/ask")

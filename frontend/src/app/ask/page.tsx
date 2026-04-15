@@ -48,6 +48,11 @@ export default function AskPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="HBM 공급망에서 최근 이상 공시가 있는 회사?"
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+              (e.currentTarget.form as HTMLFormElement)?.requestSubmit();
+            }
+          }}
           className="w-full bg-bg-2 border border-border px-5 py-4 text-[15px] focus:border-accent focus:outline-none"
         />
         <button

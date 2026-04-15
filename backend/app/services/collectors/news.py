@@ -37,7 +37,7 @@ def _parse_pub_date(s: str) -> datetime:
 
 async def _fetch_feed(url: str, source: str) -> list[dict]:
     try:
-        async with httpx.AsyncClient(timeout=15) as c:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as c:
             r = await c.get(url)
             r.raise_for_status()
         root = ET.fromstring(r.content)

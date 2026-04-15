@@ -69,16 +69,19 @@ async def seed():
         )
     logger.info(f"Persons: {len(PERSONS)} merged")
 
+    # Cartesian product 경고 방지 — 단일 MATCH 체인 한 번에 수행
     for src, rel, tgt, props in RELATIONSHIPS:
         if rel == "LEADS":
             await run_cypher(
-                f"MATCH (p:Person {{id: $src}}), (c:Company {{ticker: $tgt}}) "
+                f"MATCH (p:Person {{id: $src}}) "
+                f"MATCH (c:Company {{ticker: $tgt}}) "
                 f"MERGE (p)-[r:LEADS]->(c) SET r += $props",
                 {"src": src, "tgt": tgt, "props": props},
             )
         else:
             await run_cypher(
-                f"MATCH (a:Company {{ticker: $src}}), (b:Company {{ticker: $tgt}}) "
+                f"MATCH (a:Company {{ticker: $src}}) "
+                f"MATCH (b:Company {{ticker: $tgt}}) "
                 f"MERGE (a)-[r:{rel}]->(b) SET r += $props",
                 {"src": src, "tgt": tgt, "props": props},
             )

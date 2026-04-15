@@ -81,7 +81,7 @@ async def scan_new_disclosures() -> dict:
         result = await db.execute(
             select(Disclosure)
             .where(Disclosure.anomaly_severity.is_(None))
-            .limit(200)
+            .limit(1000)  # 대량 backfill 대비. LLM 호출 비용은 Haiku라 감당 가능
         )
         rows = result.scalars().all()
         for d in rows:
