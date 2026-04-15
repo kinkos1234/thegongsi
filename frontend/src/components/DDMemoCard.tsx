@@ -62,15 +62,15 @@ export function DDMemoCard({ memo }: { memo: DDMemo }) {
         <p className="mono text-[12px] text-fg-3">v{memo.version}</p>
       </header>
 
-      {/* 3-col 가로 레이아웃: BULL | BEAR | THESIS — 편집자 tabloid 스타일, 한눈 비교 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1.2fr] gap-8 lg:gap-10">
+      {/* BULL | BEAR 2-col 상단 + THESIS 전체 너비 하단 (편집자 칼럼 + 결론) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-8">
         <SideBlock title="BULL" body={stripInlineDisclaimer(memo.bull)} tone="accent" />
         <SideBlock title="BEAR" body={stripInlineDisclaimer(memo.bear)} tone="down" />
-        <div className="lg:border-l lg:border-border/40 lg:pl-10">
-          <h3 className="mono text-[11px] tracking-wider uppercase mb-3 text-fg-3">THESIS</h3>
-          <Markdown content={addBreathingRoom(stripInlineDisclaimer(memo.thesis))} tone="serif" />
-        </div>
       </div>
+      <section className="border-t border-border/50 pt-6">
+        <h3 className="mono text-[11px] tracking-wider uppercase mb-3 text-fg-3">THESIS</h3>
+        <Markdown content={addBreathingRoom(stripInlineDisclaimer(memo.thesis))} tone="serif" />
+      </section>
 
       <p className="mt-8 text-[12px] text-fg-3">
         ※ 본 메모는 AI가 공시·뉴스만을 근거로 생성한 정보로, 투자자문이 아닙니다.
