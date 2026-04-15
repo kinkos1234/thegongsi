@@ -172,16 +172,23 @@ async def _backfill_ticker_impl(ticker: str, days: int) -> dict:
         if not corp:
             return {"status": "not_listed", "ticker": ticker}
 
+        # corp_cls: 'Y'=KOSPI, 'K'=KOSDAQ. market_type: stockMkt/kosdaqMkt
+        market = "KOSPI" if getattr(corp, "corp_cls", "Y") == "Y" else "KOSDAQ"
+        sector = getattr(corp, "sector", None)
         async with async_session() as db:
             if company:
                 company.corp_code = corp.corp_code
                 company.name_ko = corp.corp_name
+                company.market = market
+                if sector and not company.sector:
+                    company.sector = sector
             else:
                 db.add(Company(
                     ticker=ticker,
                     corp_code=corp.corp_code,
                     name_ko=corp.corp_name,
-                    market="KOSPI",  # 정확한 시장 구분은 추가 API 필요, Phase 2
+                    market=market,
+                    sector=sector,
                 ))
             await db.commit()
         corp_code = corp.corp_code

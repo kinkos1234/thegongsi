@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { CompanyHeader } from "@/components/CompanyHeader";
 import { DisclosureList } from "@/components/DisclosureList";
 import { DDMemoCard } from "@/components/DDMemoCard";
+import { GenerateMemoButton } from "@/components/GenerateMemoButton";
 import { Sparkline } from "@/components/Sparkline";
 import type { Company, Disclosure, DDMemo, Quote } from "@/types";
 
@@ -113,25 +114,9 @@ function NoMemoCard({ ticker }: { ticker: string }) {
     <article className="bg-bg-2 border border-border/50 p-8">
       <h2 className="font-serif text-[24px] mb-3">DD 메모</h2>
       <p className="text-[14px] text-fg-2 leading-[1.65] mb-6">
-        이 종목에 대한 메모가 아직 없습니다.
+        이 종목에 대한 메모가 아직 없습니다. 수집된 공시·뉴스를 AI가 bull/bear/thesis로 정리합니다.
       </p>
-      <form action={`/api/memos/generate`} method="post" className="mb-2">
-        <GenerateButton ticker={ticker} />
-      </form>
-      <p className="text-[11px] text-fg-3 mono">
-        POST /api/memos/generate &#123;&quot;ticker&quot;: &quot;{ticker}&quot;&#125;
-      </p>
+      <GenerateMemoButton ticker={ticker} />
     </article>
-  );
-}
-
-function GenerateButton({ ticker }: { ticker: string }) {
-  return (
-    <a
-      href={`#`}
-      className="mono text-[12px] text-accent border border-accent px-4 py-2 hover:bg-accent-dim transition-colors inline-block"
-    >
-      generate memo for {ticker} →
-    </a>
   );
 }
