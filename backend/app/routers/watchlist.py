@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.tables import User, WatchListItem
+from app.models.tables import Company, User, WatchListItem
 from app.routers import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -30,8 +30,22 @@ class AddRequest(BaseModel):
 
 @router.get("/")
 async def list_watchlist(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(WatchListItem).where(WatchListItem.user_id == user.id))
-    return [{"ticker": i.ticker, "added_at": i.added_at.isoformat()} for i in result.scalars().all()]
+    """Watchlist + Company.name_ko 병기 (LEFT JOIN, 이름 없으면 null)."""
+    result = await db.execute(
+        select(WatchListItem, Company.name_ko, Company.market)
+        .outerjoin(Company, Company.ticker == WatchListItem.ticker)
+        .where(WatchListItem.user_id == user.id)
+        .order_by(WatchListItem.added_at.desc())
+    )
+    return [
+        {
+            "ticker": item.ticker,
+            "name": name or None,
+            "market": market or None,
+            "added_at": item.added_at.isoformat(),
+        }
+        for item, name, market in result.all()
+    ]
 
 
 @router.post("/")

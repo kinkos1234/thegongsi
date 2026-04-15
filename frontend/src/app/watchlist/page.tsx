@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-type Item = { ticker: string; added_at: string };
+type Item = { ticker: string; name: string | null; market: string | null; added_at: string };
 
 const TOKEN_KEY = "comad_stock_token";
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888";
@@ -152,8 +152,14 @@ export default function WatchlistPage() {
         )}
         {items.map((i) => (
           <li key={i.ticker} className="flex items-center justify-between border-b border-border/50 py-4">
-            <Link href={`/c/${i.ticker}`} className="mono text-[14px] hover:text-accent">
-              {i.ticker}
+            <Link href={`/c/${i.ticker}`} className="flex items-baseline gap-3 group">
+              <span className="font-serif text-[17px] text-fg group-hover:text-accent transition-colors">
+                {i.name ?? "이름 수집 대기"}
+              </span>
+              <span className="mono text-[12px] text-fg-3">
+                {i.ticker}
+                {i.market && <span className="ml-2">· {i.market}</span>}
+              </span>
             </Link>
             <button
               onClick={() => remove(i.ticker)}
