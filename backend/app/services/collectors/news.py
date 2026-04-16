@@ -6,7 +6,7 @@ DART 키 없어도 동작. 본문은 URL만 저장, 본문 스크래핑은 Phase
 watchlist에 등록된 티커별로 최근 뉴스 매칭 (제목 기반 단순 매칭).
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from xml.etree import ElementTree as ET
 
 import httpx
@@ -32,7 +32,7 @@ def _parse_pub_date(s: str) -> datetime:
     try:
         return parsedate_to_datetime(s).replace(tzinfo=None)
     except Exception:
-        return datetime.utcnow()
+        return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 async def _fetch_feed(url: str, source: str) -> list[dict]:

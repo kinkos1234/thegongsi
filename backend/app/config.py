@@ -8,8 +8,9 @@ class Settings(BaseSettings):
     neo4j_url: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
+    neo4j_database: str = "neo4j"  # AuraDB Free는 인스턴스 ID가 DB 이름
     cors_origins: str = "http://localhost:3333"
-    jwt_secret_key: str = "change-this-secret-in-production"
+    jwt_secret_key: str  # 필수 — .env에 JWT_SECRET_KEY 설정 필요
     jwt_algorithm: str = "HS256"
     jwt_expire_hours: int = 72
     field_encryption_key: str = ""  # Fernet 키 (base64). 없으면 BYOK 저장 불가

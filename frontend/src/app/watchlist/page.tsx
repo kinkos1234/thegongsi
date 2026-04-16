@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { EmptyState } from "@/components/Skeleton";
 
 type Item = { ticker: string; name: string | null; market: string | null; added_at: string };
 
@@ -101,13 +102,18 @@ export default function WatchlistPage() {
         <div className="flex gap-3">
           <input
             value={ticker}
-            onChange={(e) => setTicker(e.target.value)}
+            onChange={(e) => setTicker(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
             placeholder="6자리 종목코드 (예: 005930)"
+            inputMode="numeric"
+            pattern="\d{6}"
+            maxLength={6}
+            aria-invalid={ticker.length > 0 && ticker.length !== 6}
             className="flex-1 bg-bg-2 border border-border px-4 py-3 mono text-[14px] focus:border-accent focus:outline-none"
           />
           <button
             type="submit"
-            className="mono text-[13px] text-accent border border-accent px-4 hover:bg-accent-dim transition-colors"
+            disabled={ticker.length !== 6}
+            className="mono text-[13px] text-accent border border-accent px-4 hover:bg-accent-dim transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             add
           </button>
@@ -144,10 +150,10 @@ export default function WatchlistPage() {
       <ul className="mt-12 border-t border-border/50">
         {items.length === 0 && (
           <li>
-            <div className="py-16 text-center">
-              <p className="font-serif text-[20px] text-fg-2">아직 관심 종목이 없습니다.</p>
-              <p className="mt-3 text-[13px] text-fg-3">상단 입력창에 6자리 종목코드(예: 005930)를 넣어 추가하세요.</p>
-            </div>
+            <EmptyState
+              title="아직 관심 종목이 없습니다."
+              hint="상단 입력창에 6자리 종목코드(예: 005930)를 넣어 추가하세요."
+            />
           </li>
         )}
         {items.map((i) => (

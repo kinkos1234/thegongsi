@@ -49,7 +49,15 @@ export default function AskPage() {
         router.replace("/login?next=/ask");
         return;
       }
-      if (!r.ok) throw new Error(await r.text());
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        // 쿼터 초과 / 검증된 에러만 노출. 500 등은 generic 메시지
+        const detail = typeof d.detail === "string" ? d.detail : "";
+        if (r.status === 429 || r.status === 400) {
+          throw new Error(detail || "요청을 처리할 수 없습니다");
+        }
+        throw new Error("일시적인 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
+      }
       setAns(await r.json());
     } catch (e) {
       setErr(e instanceof Error ? e.message : "실행 실패");

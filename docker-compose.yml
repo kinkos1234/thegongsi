@@ -18,8 +18,8 @@ services:
       NEO4J_server_memory_heap_initial__size: 1G
       NEO4J_server_memory_heap_max__size: 2G
     ports:
-      - "7687:7687"
-      - "7474:7474"
+      - "7690:7687"
+      - "7477:7474"
     volumes:
       - neo4j-data:/data
     restart: unless-stopped

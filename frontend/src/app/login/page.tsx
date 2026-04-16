@@ -55,6 +55,7 @@ function LoginForm() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="이름"
+            autoComplete="name"
             required
             className="w-full bg-bg-2 border border-border px-4 py-3 text-[14px] focus:border-accent focus:outline-none"
           />
@@ -64,18 +65,28 @@ function LoginForm() {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="이메일"
           type="email"
+          autoComplete="email"
           required
           className="w-full bg-bg-2 border border-border px-4 py-3 text-[14px] focus:border-accent focus:outline-none"
         />
-        <input
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="비밀번호"
-          type="password"
-          required
-          minLength={8}
-          className="w-full bg-bg-2 border border-border px-4 py-3 text-[14px] focus:border-accent focus:outline-none"
-        />
+        <div>
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="비밀번호 (8자 이상)"
+            type="password"
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            required
+            minLength={8}
+            aria-describedby="password-hint"
+            className="w-full bg-bg-2 border border-border px-4 py-3 text-[14px] focus:border-accent focus:outline-none"
+          />
+          {mode === "register" && password.length > 0 && password.length < 8 && (
+            <p id="password-hint" className="mt-1 text-[11px] text-sev-med">
+              비밀번호는 8자 이상이어야 합니다 ({password.length}/8)
+            </p>
+          )}
+        </div>
 
         <button
           type="submit"

@@ -23,3 +23,7 @@ out/
 
 # Logs
 *.log
+.gstack/
+
+# Next.js build info
+*.tsbuildinfo

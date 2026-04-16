@@ -31,7 +31,10 @@ async def session(read_only: bool = False):
     from neo4j import READ_ACCESS, WRITE_ACCESS
     driver = get_driver()
     access_mode = READ_ACCESS if read_only else WRITE_ACCESS
-    async with driver.session(default_access_mode=access_mode) as s:
+    async with driver.session(
+        default_access_mode=access_mode,
+        database=settings.neo4j_database,
+    ) as s:
         yield s
 
 

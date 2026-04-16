@@ -13,7 +13,7 @@
 """
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,7 +71,7 @@ async def _gather_context(ticker: str, db: AsyncSession) -> dict:
     company_res = await db.execute(select(Company).where(Company.ticker == ticker))
     company = company_res.scalar_one_or_none()
 
-    since = (datetime.utcnow() - timedelta(days=90)).strftime("%Y-%m-%d")
+    since = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d")
     disc_res = await db.execute(
         select(Disclosure)
         .where(Disclosure.ticker == ticker, Disclosure.rcept_dt >= since)
@@ -80,7 +80,7 @@ async def _gather_context(ticker: str, db: AsyncSession) -> dict:
     )
     disclosures = disc_res.scalars().all()
 
-    news_cutoff = datetime.utcnow() - timedelta(days=30)
+    news_cutoff = datetime.now(timezone.utc) - timedelta(days=30)
     news_res = await db.execute(
         select(NewsItem)
         .where(NewsItem.ticker == ticker, NewsItem.published_at >= news_cutoff)

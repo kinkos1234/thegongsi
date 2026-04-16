@@ -139,12 +139,16 @@ TOOLS = [
 ]
 
 
-FORBIDDEN = ["CREATE", "MERGE", "DELETE", "SET ", "REMOVE", "DROP", "CALL "]
+import re
+
+_FORBIDDEN_RE = re.compile(
+    r"\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|CALL|LOAD|FOREACH)\b",
+    re.IGNORECASE,
+)
 
 
 def is_safe(cypher: str) -> bool:
-    upper = cypher.upper()
-    return not any(kw in upper for kw in FORBIDDEN)
+    return _FORBIDDEN_RE.search(cypher) is None
 
 
 async def _tool_run_cypher(args: dict) -> Any:

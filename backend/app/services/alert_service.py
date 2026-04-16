@@ -50,8 +50,8 @@ async def send_alert(channel: str, target: str, message: str) -> bool:
 
 async def check_and_alert(db: AsyncSession) -> dict:
     """최근 24시간 내 이상징후 공시를 구독자에게 알림."""
-    from datetime import datetime, timedelta
-    cutoff = (datetime.utcnow() - timedelta(hours=24)).strftime("%Y-%m-%d")
+    from datetime import datetime, timedelta, timezone
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime("%Y-%m-%d")
 
     disclosures_result = await db.execute(
         select(Disclosure)

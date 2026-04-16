@@ -1,0 +1,40 @@
+# Fly.io 배포 설정 — The Gongsi Backend (FastAPI)
+# 배포: cd backend && fly launch --no-deploy (앱 생성), fly deploy (배포)
+
+app = "the-gongsi-api"
+primary_region = "nrt"  # Tokyo — 한국 사용자에 가장 가까움
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8888"
+  # 나머지는 fly secrets 로 설정:
+  #   DATABASE_URL, NEO4J_URL/USER/PASSWORD, JWT_SECRET_KEY,
+  #   ANTHROPIC_API_KEY, DART_API_KEY, ADMIN_EMAILS,
+  #   CORS_ORIGINS, FIELD_ENCRYPTION_KEY
+
+[http_service]
+  internal_port = 8888
+  force_https = true
+  auto_stop_machines = "stop"       # 요청 없으면 자동 정지 (무료 쿼터 절약)
+  auto_start_machines = true        # 요청 오면 자동 시작
+  min_machines_running = 0          # 0 = 100% idle 시 완전 정지
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 50
+    soft_limit = 25
+
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "20s"
+  method = "GET"
+  path = "/api/health"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512  # Free tier: 3 VM × 256MB — 512MB 1대도 쿼터 내

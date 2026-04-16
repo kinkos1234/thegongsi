@@ -63,50 +63,78 @@ async def sync_disclosures(tickers: Iterable[str] | None = None, limit: int = 50
             query = query.where(Disclosure.ticker.in_(tlist))
         rows = (await db.execute(query)).scalars().all()
 
-        # Company 노드도 먼저 upsert (FILED_BY 대상)
+        # Company 노드 배치 upsert
         unique_tickers = {d.ticker for d in rows if d.ticker}
-        company_synced = 0
+        company_params = []
         for t in unique_tickers:
-            if await sync_company(db, t):
-                company_synced += 1
+            res2 = await db.execute(select(Company).where(Company.ticker == t))
+            c = res2.scalar_one_or_none()
+            if c:
+                company_params.append({
+                    "ticker": c.ticker,
+                    "name_ko": c.name_ko or "",
+                    "sector": c.sector or "",
+                    "market": c.market or "",
+                    "corp_code": c.corp_code or "",
+                })
 
-    # Disclosure 노드 + edge + TimePoint upsert (Bush/Hassabis temporal 1급 시민)
-    disclosure_synced = 0
+    if company_params:
+        await run_cypher(
+            """
+            UNWIND $batch AS row
+            MERGE (co:Company {ticker: row.ticker})
+            SET co.name_ko = row.name_ko,
+                co.sector = row.sector,
+                co.market = row.market,
+                co.corp_code = row.corp_code
+            """,
+            {"batch": company_params},
+        )
+    company_synced = len(company_params)
+
+    # Disclosure 노드 + edge + TimePoint 배치 upsert
+    disclosure_params = []
     for d in rows:
         if not d.ticker:
             continue
-        # rcept_dt → year / quarter 계산
         y = int(d.rcept_dt[:4]) if d.rcept_dt else 0
         m = int(d.rcept_dt[5:7]) if len(d.rcept_dt) >= 7 else 0
         q = f"{y}Q{(m - 1) // 3 + 1}" if m else ""
+        disclosure_params.append({
+            "ticker": d.ticker,
+            "rcept_no": d.rcept_no,
+            "report_nm": d.report_nm,
+            "rcept_dt": d.rcept_dt,
+            "severity": d.anomaly_severity or "",
+            "reason": (d.anomaly_reason or "")[:300],
+            "raw_url": d.raw_url or "",
+            "year": y,
+            "quarter": q,
+        })
+
+    # 100건씩 배치 처리 (Neo4j 트랜잭션 크기 제한 고려)
+    BATCH_SIZE = 100
+    for i in range(0, len(disclosure_params), BATCH_SIZE):
+        batch = disclosure_params[i:i + BATCH_SIZE]
         await run_cypher(
             """
-            MERGE (co:Company {ticker: $ticker})
-            MERGE (dis:Disclosure {rcept_no: $rcept_no})
-            SET dis.report_nm = $report_nm,
-                dis.rcept_dt = $rcept_dt,
-                dis.severity = $severity,
-                dis.reason = $reason,
-                dis.raw_url = $raw_url
+            UNWIND $batch AS row
+            MERGE (co:Company {ticker: row.ticker})
+            MERGE (dis:Disclosure {rcept_no: row.rcept_no})
+            SET dis.report_nm = row.report_nm,
+                dis.rcept_dt = row.rcept_dt,
+                dis.severity = row.severity,
+                dis.reason = row.reason,
+                dis.raw_url = row.raw_url
             MERGE (dis)-[:FILED_BY]->(co)
-            WITH dis
-            MERGE (tp:TimePoint {date: $rcept_dt})
-            SET tp.year = $year, tp.quarter = $quarter
+            WITH dis, row
+            MERGE (tp:TimePoint {date: row.rcept_dt})
+            SET tp.year = row.year, tp.quarter = row.quarter
             MERGE (dis)-[:OCCURRED_AT]->(tp)
             """,
-            {
-                "ticker": d.ticker,
-                "rcept_no": d.rcept_no,
-                "report_nm": d.report_nm,
-                "rcept_dt": d.rcept_dt,
-                "severity": d.anomaly_severity or "",
-                "reason": (d.anomaly_reason or "")[:300],
-                "raw_url": d.raw_url or "",
-                "year": y,
-                "quarter": q,
-            },
+            {"batch": batch},
         )
-        disclosure_synced += 1
+    disclosure_synced = len(disclosure_params)
 
     logger.info(f"Graph sync: {company_synced} companies, {disclosure_synced} disclosures")
     return {

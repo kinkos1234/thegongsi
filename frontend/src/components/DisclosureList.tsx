@@ -51,10 +51,12 @@ export function DisclosureList({ ticker, initial }: { ticker: string; initial: D
   return (
     <div>
       <div className="flex items-baseline justify-between mb-4">
-        <div className="flex gap-1">
+        <div className="flex gap-1" role="tablist" aria-label="심각도 필터">
           {(["all", "high", "med", "low", "uncertain"] as const).map((s) => (
             <button
               key={s}
+              role="tab"
+              aria-selected={severity === s}
               onClick={() => {
                 setPage(0);
                 setSeverity(s);

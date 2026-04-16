@@ -39,13 +39,13 @@ export function GenerateMemoButton({ ticker }: { ticker: string }) {
     <div>
       <button
         onClick={generate}
-        disabled={state === "generating" || state === "done"}
+        disabled={state === "generating"}
         className="mono text-[12px] text-accent border border-accent px-4 py-2 hover:bg-accent-dim transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {state === "idle" && `generate memo for ${ticker} →`}
         {state === "generating" && "생성 중… (30~60초)"}
-        {state === "done" && "✓ 생성 완료"}
-        {state === "error" && "재시도"}
+        {state === "done" && "✓ 완료 — regenerate →"}
+        {state === "error" && "재시도 →"}
       </button>
       {err && <p className="mt-3 text-[12px] text-sev-high">⚠ {err}</p>}
     </div>

@@ -52,4 +52,4 @@ async def get_anthropic_client(user=None, kind: str = "ask"):
                     f"자기 키 등록은 /settings"
                 )
     from anthropic import AsyncAnthropic
-    return AsyncAnthropic(api_key=key), owner
+    return AsyncAnthropic(api_key=key, timeout=90.0), owner

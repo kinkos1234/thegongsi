@@ -174,6 +174,8 @@ export default function SettingsPage() {
             value={anthropic}
             onChange={(e) => setAnthropic(e.target.value)}
             placeholder="sk-ant-api03-…"
+            autoComplete="off"
+            spellCheck={false}
             className="w-full bg-bg-2 border border-border px-4 py-3 mono text-[13px] focus:border-accent focus:outline-none"
           />
           <p className="mt-1 text-[11px] text-fg-3">
@@ -199,6 +201,8 @@ export default function SettingsPage() {
             value={openai}
             onChange={(e) => setOpenai(e.target.value)}
             placeholder="sk-proj-…"
+            autoComplete="off"
+            spellCheck={false}
             className="w-full bg-bg-2 border border-border px-4 py-3 mono text-[13px] focus:border-accent focus:outline-none"
           />
         </div>

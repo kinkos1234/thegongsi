@@ -60,22 +60,34 @@ class VerifyRequest(BaseModel):
     anthropic_key: str
 
 
+import re
+
+# Anthropic API 키 형식 엄격 검증: sk-ant-api##-(base64url)
+_ANTHROPIC_KEY_RE = re.compile(r"^sk-ant-api\d{2}-[A-Za-z0-9_\-]{80,200}$")
+
+
 @router.post("/verify")
 async def verify_key(req: VerifyRequest):
-    """BYOK 저장 전 Anthropic API 유효성 1-token 테스트."""
-    if not req.anthropic_key or not req.anthropic_key.startswith("sk-"):
-        raise HTTPException(status_code=400, detail="유효하지 않은 키 형식")
+    """BYOK 저장 전 Anthropic API 키 검증.
+
+    1) 형식 검증 (정규식) — 즉시 거부
+    2) 1-token ping — 실제 API에 유효한 키인지 확인 (최소 비용)
+    """
+    key = (req.anthropic_key or "").strip()
+    if not _ANTHROPIC_KEY_RE.match(key):
+        raise HTTPException(status_code=400, detail="유효하지 않은 Anthropic 키 형식입니다 (sk-ant-api##-...).")
     try:
         from anthropic import AsyncAnthropic
-        client = AsyncAnthropic(api_key=req.anthropic_key)
+        client = AsyncAnthropic(api_key=key, timeout=10.0)
         msg = await client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=1,
             messages=[{"role": "user", "content": "ok"}],
         )
         return {"valid": True, "model": msg.model}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"키 검증 실패: {e}")
+    except Exception:
+        # 내부 에러 상세 노출 금지
+        raise HTTPException(status_code=400, detail="키 검증 실패: Anthropic API에서 키를 거부했습니다.")
 
 
 @router.post("/")

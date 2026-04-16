@@ -73,15 +73,21 @@ export function HomeSearch() {
         onFocus={() => items.length > 0 && setOpen(true)}
         onKeyDown={onKeyDown}
         placeholder="종목 검색 — 종목명·티커·섹터 (예: 삼성전자, 005930, 반도체)"
+        role="combobox"
+        aria-expanded={open && items.length > 0}
+        aria-autocomplete="list"
+        aria-controls="search-listbox"
+        aria-activedescendant={open && items.length > 0 ? `search-option-${active}` : undefined}
         className="w-full bg-bg-2 border border-border px-5 py-4 text-[15px] focus:border-accent focus:outline-none"
       />
       {open && items.length > 0 && (
-        <ul className="absolute top-full left-0 right-0 mt-1 bg-bg-2 border border-border/80 max-h-[320px] overflow-y-auto z-30">
+        <ul id="search-listbox" role="listbox" aria-label="종목 검색 결과" className="absolute top-full left-0 right-0 mt-1 bg-bg-2 border border-border/80 max-h-[320px] overflow-y-auto z-30">
           {items.map((c, i) => (
-            <li key={c.ticker}>
+            <li key={c.ticker} id={`search-option-${i}`} role="option" aria-selected={i === active}>
               <button
                 onMouseEnter={() => setActive(i)}
                 onClick={() => go(c.ticker)}
+                tabIndex={-1}
                 className={`w-full text-left px-4 py-2 flex items-baseline gap-3 transition-colors ${
                   i === active ? "bg-bg-3" : ""
                 }`}

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field
@@ -42,8 +42,8 @@ class UserResponse(BaseModel):
 def _create_jwt(user_id: str) -> str:
     payload = {
         "sub": user_id,
-        "exp": datetime.utcnow() + timedelta(hours=settings.jwt_expire_hours),
-        "iat": datetime.utcnow(),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=settings.jwt_expire_hours),
+        "iat": datetime.now(timezone.utc),
     }
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 

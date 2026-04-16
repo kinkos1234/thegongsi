@@ -35,29 +35,43 @@ async def _get_usage(db: AsyncSession, user_id: str, date: str, kind: str) -> Se
 
 
 async def check_and_increment(user_id: str, kind: str) -> dict:
-    """서버 키 호출 전 쿼터 체크.
+    """서버 키 호출 전 쿼터 체크 (원자적 증가).
 
     Returns:
         {"ok": True, "count": N, "limit": L}  — 호출 허용
         {"ok": False, "count": N, "limit": L} — 차단 (429 응답용)
     """
+    from sqlalchemy import update as sql_update
+
     limit = settings.server_key_daily_limit_memo if kind == "memo" else settings.server_key_daily_limit_ask
     if limit <= 0:
-        # 0 = 비활성 = 무제한
         return {"ok": True, "count": 0, "limit": 0}
 
     today = _today_kst()
     async with async_session() as db:
+        # 원자적 증가: UPDATE ... SET count = count + 1 WHERE count < limit
         usage = await _get_usage(db, user_id, today, kind)
-        current = usage.count if usage else 0
-        if current >= limit:
-            return {"ok": False, "count": current, "limit": limit}
         if usage:
-            usage.count = current + 1
+            if usage.count >= limit:
+                return {"ok": False, "count": usage.count, "limit": limit}
+            result = await db.execute(
+                sql_update(ServerKeyUsage)
+                .where(
+                    ServerKeyUsage.user_id == user_id,
+                    ServerKeyUsage.date == today,
+                    ServerKeyUsage.kind == kind,
+                    ServerKeyUsage.count < limit,
+                )
+                .values(count=ServerKeyUsage.count + 1)
+            )
+            await db.commit()
+            if result.rowcount == 0:
+                return {"ok": False, "count": usage.count, "limit": limit}
+            return {"ok": True, "count": usage.count + 1, "limit": limit}
         else:
             db.add(ServerKeyUsage(user_id=user_id, date=today, kind=kind, count=1))
-        await db.commit()
-        return {"ok": True, "count": current + 1, "limit": limit}
+            await db.commit()
+            return {"ok": True, "count": 1, "limit": limit}
 
 
 async def get_usage_summary(user_id: str) -> dict:
