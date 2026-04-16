@@ -53,7 +53,10 @@ export function Sparkline({ data, up }: { data: Point[]; up: boolean }) {
             }}
             labelStyle={{ color: "var(--color-fg-3)" }}
             itemStyle={{ color: "var(--color-fg)" }}
-            formatter={(v: number) => [v.toLocaleString("ko-KR"), "close"]}
+            formatter={(v) => {
+              const n = typeof v === "number" ? v : Number(v);
+              return [Number.isFinite(n) ? n.toLocaleString("ko-KR") : String(v ?? ""), "close"];
+            }}
             labelFormatter={(l) => l}
           />
           <Line type="monotone" dataKey="c" stroke={color} dot={false} strokeWidth={1.5} />
