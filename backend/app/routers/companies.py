@@ -14,6 +14,7 @@ async def list_companies(
     q: str | None = Query(None, description="ticker/name_ko/sector 검색"),
     market: str | None = Query(None, description="KOSPI / KOSDAQ"),
     limit: int = Query(30, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
     """Company 목록. 검색어 q 있으면 ticker/이름/섹터 부분일치."""
@@ -29,7 +30,7 @@ async def list_companies(
         )
     if market:
         query = query.where(Company.market == market)
-    query = query.order_by(Company.ticker).limit(limit)
+    query = query.order_by(Company.ticker).offset(offset).limit(limit)
     result = await db.execute(query)
     return [
         {
