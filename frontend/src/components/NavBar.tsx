@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Menu, X } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
 const TOKEN_KEY = "comad_stock_token";
@@ -92,9 +93,9 @@ export function NavBar() {
             aria-expanded={menuOpen}
             aria-controls="mobile-menu"
             aria-label={menuOpen ? "메뉴 닫기" : "메뉴 열기"}
-            className="mono text-[14px] text-fg-2 hover:text-fg p-2"
+            className="text-fg-2 hover:text-fg p-2"
           >
-            {menuOpen ? "✕" : "≡"}
+            {menuOpen ? <X size={18} strokeWidth={1.75} /> : <Menu size={18} strokeWidth={1.75} />}
           </button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CalendarDays } from "lucide-react";
 
 type Event = {
   ticker: string;
@@ -54,7 +55,10 @@ export function UpcomingExDates({ days = 7 }: { days?: number }) {
   return (
     <section className="mt-10 border-t border-border/50 pt-8">
       <div className="flex items-baseline justify-between">
-        <h2 className="font-serif text-[22px] tracking-tight">D-{days} 권리락·배당락 캘린더</h2>
+        <h2 className="font-serif text-[22px] tracking-tight inline-flex items-baseline gap-2">
+          <CalendarDays size={16} strokeWidth={1.75} className="translate-y-[2px] text-fg-2" />
+          D-{days} 권리락·배당락 캘린더
+        </h2>
         <span className="mono text-[11px] text-fg-3 uppercase tracking-wider">
           {events.length} events
         </span>

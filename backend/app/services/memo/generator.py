@@ -80,7 +80,8 @@ async def _gather_context(ticker: str, db: AsyncSession) -> dict:
     )
     disclosures = disc_res.scalars().all()
 
-    news_cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    # NewsItem.published_at은 TIMESTAMP WITHOUT TIME ZONE — naive datetime 비교 필요.
+    news_cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).replace(tzinfo=None)
     news_res = await db.execute(
         select(NewsItem)
         .where(NewsItem.ticker == ticker, NewsItem.published_at >= news_cutoff)

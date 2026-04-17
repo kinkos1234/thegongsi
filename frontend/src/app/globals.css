@@ -41,6 +41,22 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* 브라우저 네이티브 UI(스크롤바·date picker·select indicator 등)를 테마에 맞춤. */
+:root { color-scheme: dark; }
+html[data-theme="light"] { color-scheme: light; }
+
+/* date input 내부 캘린더 아이콘이 다크에서 검은색으로 찍히는 문제 — invert로 밝게. */
+html:not([data-theme="light"]) input::-webkit-calendar-picker-indicator,
+html:not([data-theme="light"]) input::-webkit-inner-spin-button,
+html:not([data-theme="light"]) input::-webkit-outer-spin-button {
+  filter: invert(0.7);
+  cursor: pointer;
+}
+
+/* HR·placeholder 컬러 통일 */
+input::placeholder, textarea::placeholder { color: var(--color-fg-3); opacity: 1; }
+hr { border-color: var(--color-border); }
+
 /* 한국어 줄바꿈을 단어 단위로. Tailwind preflight 덮어쓰기 위해 전역 *. */
 *, *::before, *::after {
   word-break: keep-all;

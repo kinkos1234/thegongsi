@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import type { Disclosure } from "@/types";
 import { DisclosureRow } from "./DisclosureRow";
 
@@ -98,16 +99,19 @@ export function DisclosureList({ ticker, initial }: { ticker: string; initial: D
           />
           <button
             onClick={applySearch}
-            className="mono text-[12px] px-3 py-1.5 border border-accent text-accent hover:bg-accent-dim"
+            className="mono text-[12px] px-3 py-1.5 border border-accent text-accent hover:bg-accent-dim inline-flex items-center gap-1.5"
           >
+            <Search size={13} strokeWidth={1.75} />
             검색
           </button>
           {hasSearch && (
             <button
               onClick={resetSearch}
-              className="mono text-[12px] px-2 py-1.5 text-fg-3 hover:text-fg"
+              className="mono text-[12px] px-2 py-1.5 text-fg-3 hover:text-fg inline-flex items-center gap-1"
+              aria-label="검색 초기화"
             >
-              ✕ 초기화
+              <X size={13} strokeWidth={1.75} />
+              초기화
             </button>
           )}
         </div>
@@ -168,17 +172,19 @@ export function DisclosureList({ ticker, initial }: { ticker: string; initial: D
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={!hasPrev || loading}
-            className="mono text-[12px] text-fg-3 hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed"
+            className="mono text-[12px] text-fg-3 hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-1"
           >
-            ← prev
+            <ChevronLeft size={13} strokeWidth={1.75} />
+            prev
           </button>
           <span className="mono text-[11px] text-fg-3">page {page + 1}</span>
           <button
             onClick={() => setPage((p) => p + 1)}
             disabled={!hasNext || loading}
-            className="mono text-[12px] text-fg-3 hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed"
+            className="mono text-[12px] text-fg-3 hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed inline-flex items-center gap-1"
           >
-            next →
+            next
+            <ChevronRight size={13} strokeWidth={1.75} />
           </button>
         </div>
       )}

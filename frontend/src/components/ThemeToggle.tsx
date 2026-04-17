@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Moon, Sun } from "lucide-react";
 
 const KEY = "comad_stock_theme";
 
@@ -22,13 +23,16 @@ export function ThemeToggle() {
     document.documentElement.setAttribute("data-theme", next);
   }
 
+  const Icon = !mounted || theme === "dark" ? Moon : Sun;
+
   return (
     <button
       onClick={toggle}
-      className="mono text-[12px] text-fg-3 hover:text-fg transition-colors"
-      aria-label="Toggle theme"
+      className="text-fg-3 hover:text-fg transition-colors p-1 -m-1"
+      aria-label={theme === "dark" ? "라이트 모드로" : "다크 모드로"}
+      title={theme === "dark" ? "라이트 모드" : "다크 모드"}
     >
-      {mounted ? (theme === "dark" ? "☾" : "☀") : "☾"}
+      <Icon size={15} strokeWidth={1.75} />
     </button>
   );
 }
