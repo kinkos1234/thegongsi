@@ -23,14 +23,37 @@ async def _backfill_task(ticker: str, days: int, user_id: str | None = None):
         logger.exception(f"watchlist backfill {ticker} failed: {e}")
         return
 
-    # 공시 수집 성공 후 DD 메모 자동 생성 (BYOK/서버키 fallback 내부 처리)
+    # 공시 수집 성공 후 후속 작업 체인
     if result.get("status") == "ok" and result.get("inserted", 0) >= 0:
+        # (1) 권리락·배당락 이벤트 스캔 + 저장
+        try:
+            import asyncpg
+            import os
+            from app.services.calendar.ex_dates import scan_ex_dates, upsert_events
+            corp_code = result.get("corp_code", "")
+            if corp_code:
+                events = await scan_ex_dates([(ticker, corp_code)], days_back=180, concurrency=3)
+                if events:
+                    url = os.environ.get("DATABASE_URL", "")
+                    for p in ("postgresql+asyncpg://", "postgres+asyncpg://"):
+                        if url.startswith(p):
+                            url = url.replace(p, "postgresql://", 1)
+                            break
+                    conn = await asyncpg.connect(url)
+                    try:
+                        await upsert_events(conn, events)
+                        logger.info(f"watchlist calendar {ticker}: +{len(events)} events")
+                    finally:
+                        await conn.close()
+        except Exception as e:
+            logger.warning(f"watchlist calendar {ticker} skipped: {e}")
+
+        # (2) DD 메모 자동 생성
         try:
             from app.services.memo.generator import generate_memo
             memo_result = await generate_memo(ticker, user_id=user_id)
             logger.info(f"watchlist auto-memo {ticker}: version={memo_result.get('version')}")
         except Exception as e:
-            # quota/no-key/API 에러는 사용자 경험 저하 없이 스킵
             logger.warning(f"watchlist auto-memo {ticker} skipped: {e}")
 
 
