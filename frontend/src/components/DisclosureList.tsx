@@ -16,15 +16,18 @@ const SEV_LABEL: Record<string, string> = {
 };
 
 export function DisclosureList({ ticker, initial }: { ticker: string; initial: Disclosure[] }) {
-  // initial은 서버에서 처음 가져온 첫 페이지
   const [page, setPage] = useState(0);
   const [items, setItems] = useState<Disclosure[]>(initial);
   const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [severity, setSeverity] = useState<"all" | "high" | "med" | "low" | "uncertain">("all");
+  // 과거 공시 정밀검색 (Threads 피드백 대응)
+  const [q, setQ] = useState("");
+  const [qApplied, setQApplied] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
-    // severity 필터 또는 페이지 변경 시 리페치
     setLoading(true);
     const params = new URLSearchParams({
       ticker,
@@ -32,6 +35,9 @@ export function DisclosureList({ ticker, initial }: { ticker: string; initial: D
       offset: String(page * PAGE_SIZE),
     });
     if (severity !== "all") params.set("severity", severity);
+    if (qApplied) params.set("q", qApplied);
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
     fetch(`${API}/api/disclosures/?${params}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((list: Disclosure[]) => {
@@ -41,15 +47,71 @@ export function DisclosureList({ ticker, initial }: { ticker: string; initial: D
         }
       })
       .finally(() => setLoading(false));
-  }, [ticker, page, severity]);
+  }, [ticker, page, severity, qApplied, dateFrom, dateTo]);
+
+  const applySearch = () => {
+    setPage(0);
+    setQApplied(q);
+  };
+  const resetSearch = () => {
+    setPage(0);
+    setQ("");
+    setQApplied("");
+    setDateFrom("");
+    setDateTo("");
+  };
 
   const pageStart = page * PAGE_SIZE + 1;
   const pageEnd = page * PAGE_SIZE + items.length;
   const hasNext = items.length === PAGE_SIZE;
   const hasPrev = page > 0;
 
+  const hasSearch = qApplied || dateFrom || dateTo;
+
   return (
     <div>
+      {/* 과거 공시 정밀검색 바 */}
+      <div className="mb-4 p-3 border border-border/40 bg-bg-2/30">
+        <div className="flex flex-wrap gap-2 items-center">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && applySearch()}
+            placeholder="제목·요약 검색 (예: 유상증자, 배당)"
+            className="flex-1 min-w-[200px] bg-bg border border-border/50 px-3 py-1.5 text-[13px] focus:border-accent outline-none"
+            aria-label="공시 검색"
+          />
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => { setPage(0); setDateFrom(e.target.value); }}
+            className="bg-bg border border-border/50 px-2 py-1.5 text-[12px] mono"
+            aria-label="시작일"
+          />
+          <span className="text-fg-3 mono text-[12px]">~</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => { setPage(0); setDateTo(e.target.value); }}
+            className="bg-bg border border-border/50 px-2 py-1.5 text-[12px] mono"
+            aria-label="종료일"
+          />
+          <button
+            onClick={applySearch}
+            className="mono text-[12px] px-3 py-1.5 border border-accent text-accent hover:bg-accent-dim"
+          >
+            검색
+          </button>
+          {hasSearch && (
+            <button
+              onClick={resetSearch}
+              className="mono text-[12px] px-2 py-1.5 text-fg-3 hover:text-fg"
+            >
+              ✕ 초기화
+            </button>
+          )}
+        </div>
+      </div>
       <div className="flex items-baseline justify-between mb-4">
         <div className="flex gap-1" role="tablist" aria-label="심각도 필터">
           {(["all", "high", "med", "low", "uncertain"] as const).map((s) => (
