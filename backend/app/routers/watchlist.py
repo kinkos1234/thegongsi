@@ -14,47 +14,59 @@ router = APIRouter()
 
 
 async def _backfill_task(ticker: str, days: int, user_id: str | None = None):
-    """watchlist 추가 시 백그라운드 실행 — DART 공시 N일치 + anomaly + DD 메모 자동 생성."""
+    """watchlist 추가 시 백그라운드 실행 — backfill → calendar 스캔 → DD 메모.
+
+    각 단계는 독립적으로 try/except — DART throttle/실패가 하위 단계를 막지 않음.
+    """
     from app.services.collectors.dart import backfill_ticker
+    corp_code = ""
     try:
         result = await backfill_ticker(ticker, days=days)
         logger.info(f"watchlist backfill {ticker}: {result}")
+        corp_code = (result or {}).get("corp_code", "")
     except Exception as e:
-        logger.exception(f"watchlist backfill {ticker} failed: {e}")
-        return
+        logger.warning(f"watchlist backfill {ticker} failed (continuing chain): {e}")
 
-    # 공시 수집 성공 후 후속 작업 체인
-    if result.get("status") == "ok" and result.get("inserted", 0) >= 0:
-        # (1) 권리락·배당락 이벤트 스캔 + 저장
+    # corp_code가 backfill에서 안 나왔으면 DB에서 직접 조회 — 나머지 체인 유지
+    if not corp_code:
+        try:
+            from app.database import async_session
+            async with async_session() as db:
+                res = await db.execute(select(Company).where(Company.ticker == ticker))
+                c = res.scalar_one_or_none()
+                corp_code = (c.corp_code if c else "") or ""
+        except Exception as e:
+            logger.warning(f"watchlist {ticker} corp_code lookup failed: {e}")
+
+    # (1) 권리락·배당락 이벤트 스캔 + 저장 (corp_code 있어야 함)
+    if corp_code:
         try:
             import asyncpg
             import os
             from app.services.calendar.ex_dates import scan_ex_dates, upsert_events
-            corp_code = result.get("corp_code", "")
-            if corp_code:
-                events = await scan_ex_dates([(ticker, corp_code)], days_back=180, concurrency=3)
-                if events:
-                    url = os.environ.get("DATABASE_URL", "")
-                    for p in ("postgresql+asyncpg://", "postgres+asyncpg://"):
-                        if url.startswith(p):
-                            url = url.replace(p, "postgresql://", 1)
-                            break
-                    conn = await asyncpg.connect(url)
-                    try:
-                        await upsert_events(conn, events)
-                        logger.info(f"watchlist calendar {ticker}: +{len(events)} events")
-                    finally:
-                        await conn.close()
+            events = await scan_ex_dates([(ticker, corp_code)], days_back=180, concurrency=3)
+            if events:
+                url = os.environ.get("DATABASE_URL", "")
+                for p in ("postgresql+asyncpg://", "postgres+asyncpg://"):
+                    if url.startswith(p):
+                        url = url.replace(p, "postgresql://", 1)
+                        break
+                conn = await asyncpg.connect(url)
+                try:
+                    await upsert_events(conn, events)
+                    logger.info(f"watchlist calendar {ticker}: +{len(events)} events")
+                finally:
+                    await conn.close()
         except Exception as e:
             logger.warning(f"watchlist calendar {ticker} skipped: {e}")
 
-        # (2) DD 메모 자동 생성
-        try:
-            from app.services.memo.generator import generate_memo
-            memo_result = await generate_memo(ticker, user_id=user_id)
-            logger.info(f"watchlist auto-memo {ticker}: version={memo_result.get('version')}")
-        except Exception as e:
-            logger.warning(f"watchlist auto-memo {ticker} skipped: {e}")
+    # (2) DD 메모 자동 생성 — DB 내 기존 공시/뉴스 기반. backfill 실패와 무관.
+    try:
+        from app.services.memo.generator import generate_memo
+        memo_result = await generate_memo(ticker, user_id=user_id)
+        logger.info(f"watchlist auto-memo {ticker}: version={memo_result.get('version')}")
+    except Exception as e:
+        logger.warning(f"watchlist auto-memo {ticker} skipped: {e}")
 
 
 class AddRequest(BaseModel):
