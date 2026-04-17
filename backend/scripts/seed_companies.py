@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 def _fetch_listing(market: str, top: int | None) -> list[tuple[str, str]]:
     """pykrx로 시장 종목 리스트 반환. [(ticker, name), ...]"""
     from pykrx import stock
-    today = datetime.now().strftime("%Y%m%d")
+    today = stock.get_nearest_business_day_in_a_week(datetime.now().strftime("%Y%m%d"))
     tickers = stock.get_market_ticker_list(today, market=market)
     if top:
         # 시총 상위 top
