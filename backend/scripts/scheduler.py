@@ -66,7 +66,43 @@ def run_scheduler():
         name="Weekly KOSPI 200 + KOSDAQ 150 membership sync + backfill",
     )
 
-    logger.info("Scheduler started. Daily KST 06:00 + Weekly KST Mon 07:00 (index sync).")
+    # 매주 토요일 KST 05:00 = UTC 금요일 20:00 — companies seed + market enrichment
+    # 신규 상장/폐지/KOSPI↔KOSDAQ 이동 반영.
+    def weekly_market_refresh():
+        import subprocess
+        import os
+        env = os.environ.copy()
+        # seed_dart_native: 상장사 신규 등록
+        subprocess.run(["python", "scripts/seed_dart_native.py"], env=env, check=False)
+        # enrich_market: KIND 기준 KOSPI/KOSDAQ 라벨 재적용
+        subprocess.run(["python", "scripts/enrich_market.py"], env=env, check=False)
+
+    scheduler.add_job(
+        weekly_market_refresh,
+        CronTrigger(day_of_week="fri", hour=20, minute=0, timezone="UTC"),
+        id="weekly_market_refresh",
+        name="Weekly companies seed + KIND market enrichment",
+    )
+
+    # 매일 KST 07:30 = UTC 22:30 — 당일 배당 ex-date 증분 스캔 (소량, 쓰레드 피드백 대응)
+    def daily_dividend_scan():
+        import subprocess
+        import os
+        subprocess.run(
+            ["python", "scripts/scan_dividend_dates.py", "--days", "14"],
+            env=os.environ.copy(), check=False,
+        )
+
+    scheduler.add_job(
+        daily_dividend_scan,
+        CronTrigger(hour=22, minute=30, timezone="UTC"),
+        id="daily_dividend_scan",
+        name="Daily dividend ex-date incremental scan (last 14d)",
+    )
+
+    logger.info(
+        "Scheduler: Daily 06:00 collect + 07:30 dividend scan; Mon 07:00 index sync; Sat 05:00 market refresh (KST)."
+    )
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
