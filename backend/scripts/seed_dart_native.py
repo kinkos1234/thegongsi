@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
-import urllib.request
+import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -32,11 +32,14 @@ logger = logging.getLogger(__name__)
 def _fetch_corp_codes(api_key: str) -> list[dict]:
     url = f"https://opendart.fss.or.kr/api/corpCode.xml?crtfc_key={api_key}"
     logger.info("OpenDART corpCode.xml 다운로드 중...")
-    with urllib.request.urlopen(url, timeout=60) as resp:
-        data = resp.read()
+    resp = requests.get(url, timeout=30)
+    resp.raise_for_status()
+    data = resp.content
+    logger.info(f"  → {len(data):,} bytes 수신, 파싱 중")
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         with zf.open("CORPCODE.xml") as f:
             tree = ET.parse(f)
+    logger.info("  → XML 파싱 완료")
     root = tree.getroot()
     corps = []
     for item in root.findall("list"):
