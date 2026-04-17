@@ -24,10 +24,9 @@ logger = logging.getLogger(__name__)
 KST = timezone(timedelta(hours=9))
 
 DART_ENDPOINTS = {
-    # endpoint_path, (event_date_field, event_type, record_date_field)
     "piicDecsn": {
         "label": "유상증자결정",
-        # piicDecsn: bfcorp_rgt_de(권리부최종매매일), afcrp_rgt_de(권리락일), shstk_nstk_paid_indate_bgn(청약개시)
+        # bfcorp_rgt_de(권리부최종매매일), afcrp_rgt_de(권리락일)
         "events": [
             ("afcrp_rgt_de", "ex_right"),
             ("bfcorp_rgt_de", "last_with_right"),
@@ -40,19 +39,17 @@ DART_ENDPOINTS = {
             ("nstk_isstk_lstg_pd_de", "listing_date"),
         ],
     },
-    "stkDvdendDecsn": {
-        "label": "주식배당결정",
+    "pifricDecsn": {
+        "label": "유무상증자결정",
         "events": [
-            ("stdd", "record_date"),
+            ("afcrp_rgt_de", "ex_right"),
+            ("bfcorp_rgt_de", "last_with_right"),
+            ("nstk_ascrtn_de", "record_date"),
         ],
     },
-    "cashDvdendDecsn": {
-        "label": "현금·현물배당결정",
-        "events": [
-            ("stdd", "record_date"),
-            ("dvdd_pym_dd", "payment_date"),
-        ],
-    },
+    # NOTE: 현금·현물배당 ex-date는 OpenDART 주요사항보고서 구조화 API로 제공되지 않음.
+    # 정기보고서 alotMatter(배당 요약)만 가능. 배당 ex-date는 다음 Phase에서 KRX 기업공시 스크래핑 또는
+    # 사업보고서 본문 파싱으로 확장 예정.
 }
 
 
