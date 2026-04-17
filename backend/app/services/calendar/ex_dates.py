@@ -11,13 +11,14 @@ OpenDART 주요사항보고서 중:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
-import requests
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -67,18 +68,17 @@ def _normalize_date(raw: str | None) -> str | None:
     return None
 
 
-def _dart_fetch(endpoint: str, corp_code: str, bgn_de: str, end_de: str, api_key: str) -> list[dict]:
+async def _dart_fetch(session, endpoint: str, corp_code: str, bgn_de: str, end_de: str, api_key: str) -> list[dict]:
     url = f"https://opendart.fss.or.kr/api/{endpoint}.json"
     params = {"crtfc_key": api_key, "corp_code": corp_code, "bgn_de": bgn_de, "end_de": end_de}
     try:
-        resp = requests.get(url, params=params, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
+        async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
     except Exception as e:
         logger.warning(f"DART {endpoint} {corp_code} 실패: {e}")
         return []
     if data.get("status") not in ("000", "013"):
-        # 013 = 조회된 데이터 없음 (정상)
         if data.get("status") != "013":
             logger.debug(f"DART {endpoint} status={data.get('status')} msg={data.get('message')}")
         return []
@@ -110,8 +110,9 @@ async def scan_ex_dates(
     tickers: list[tuple[str, str]],  # [(ticker, corp_code), ...]
     days_back: int = 60,
     api_key: str | None = None,
+    concurrency: int = 20,
 ) -> list[dict]:
-    """지정 종목군의 최근 days_back일 내 공시에서 ex-date 이벤트 추출."""
+    """지정 종목군의 최근 days_back일 내 공시에서 ex-date 이벤트 추출 (parallel)."""
     api_key = api_key or os.environ.get("DART_API_KEY", "")
     if not api_key:
         logger.error("DART_API_KEY 미설정")
@@ -120,15 +121,25 @@ async def scan_ex_dates(
     end_de = now.strftime("%Y%m%d")
     bgn_de = (now - timedelta(days=days_back)).strftime("%Y%m%d")
 
-    all_events: list[dict] = []
-    for ticker, corp_code in tickers:
-        if not corp_code:
-            continue
+    sem = asyncio.Semaphore(concurrency)
+
+    async def _one(client: httpx.AsyncClient, ticker: str, corp_code: str):
+        rows: list[dict] = []
         for endpoint in DART_ENDPOINTS:
-            filings = _dart_fetch(endpoint, corp_code, bgn_de, end_de, api_key)
+            async with sem:
+                filings = await _dart_fetch(client, endpoint, corp_code, bgn_de, end_de, api_key)
             for f in filings:
-                all_events.extend(_rows_from_filing(corp_code, ticker, endpoint, f))
-    logger.info(f"scan_ex_dates: {len(tickers)} tickers × 4 endpoints → {len(all_events)} events")
+                rows.extend(_rows_from_filing(corp_code, ticker, endpoint, f))
+        return rows
+
+    limits = httpx.Limits(max_connections=concurrency * 2, max_keepalive_connections=concurrency)
+    async with httpx.AsyncClient(limits=limits) as client:
+        results = await asyncio.gather(
+            *[_one(client, t, c) for t, c in tickers if c],
+            return_exceptions=False,
+        )
+    all_events = [e for sub in results for e in sub]
+    logger.info(f"scan_ex_dates: {len(tickers)} tickers × {len(DART_ENDPOINTS)} endpoints → {len(all_events)} events")
     return all_events
 
 
