@@ -68,13 +68,13 @@ def _normalize_date(raw: str | None) -> str | None:
     return None
 
 
-async def _dart_fetch(session, endpoint: str, corp_code: str, bgn_de: str, end_de: str, api_key: str) -> list[dict]:
+async def _dart_fetch(client: httpx.AsyncClient, endpoint: str, corp_code: str, bgn_de: str, end_de: str, api_key: str) -> list[dict]:
     url = f"https://opendart.fss.or.kr/api/{endpoint}.json"
     params = {"crtfc_key": api_key, "corp_code": corp_code, "bgn_de": bgn_de, "end_de": end_de}
     try:
-        async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-            resp.raise_for_status()
-            data = await resp.json()
+        resp = await client.get(url, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
     except Exception as e:
         logger.warning(f"DART {endpoint} {corp_code} 실패: {e}")
         return []
