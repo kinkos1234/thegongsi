@@ -84,7 +84,7 @@ async def seed():
                     ticker=c["stock_code"],
                     corp_code=c["corp_code"],
                     name_ko=c["corp_name"],
-                    market=None,  # market은 pykrx 복구 시 별도 보강
+                    market="UNKNOWN",  # pykrx 복구 시 KOSPI/KOSDAQ 보강
                 ))
                 inserted += 1
         await db.commit()
