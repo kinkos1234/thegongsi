@@ -1,4 +1,5 @@
 import { HomeSearch } from "@/components/HomeSearch";
+import { UpcomingExDates } from "@/components/UpcomingExDates";
 
 export default function Home() {
   return (
@@ -26,6 +27,8 @@ export default function Home() {
           </a>
           <span className="text-fg-3 mono">MIT · BYOK · self-hostable</span>
         </div>
+
+        <UpcomingExDates days={7} />
       </section>
 
       <section className="border-t border-border/50">

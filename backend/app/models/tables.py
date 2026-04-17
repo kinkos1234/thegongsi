@@ -15,7 +15,7 @@ from app.models.user import (
     WatchListItem,
 )
 from app.models.market import Company, FinancialSnapshot, ShortSellingSnapshot
-from app.models.signals import Disclosure, EarningsEvent, NewsItem
+from app.models.signals import CalendarEvent, Disclosure, EarningsEvent, NewsItem
 from app.models.memo import DDMemo, DDMemoVersion
 
 __all__ = [
@@ -35,6 +35,7 @@ __all__ = [
     "Disclosure",
     "EarningsEvent",
     "NewsItem",
+    "CalendarEvent",
     "DDMemo",
     "DDMemoVersion",
 ]
