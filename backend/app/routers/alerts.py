@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,11 +9,14 @@ from app.routers import get_current_user
 
 router = APIRouter()
 
+_VALID_CHANNELS = {"telegram", "slack", "discord"}
+_VALID_SEVERITY = {"high", "med", "low"}
+
 
 class AlertConfigRequest(BaseModel):
-    channel: str  # telegram, slack, discord
-    channel_target: str
-    severity_threshold: str = "med"
+    channel: str = Field(..., description="telegram | slack | discord")
+    channel_target: str = Field(..., min_length=5, max_length=500)
+    severity_threshold: str = Field("med", description="high | med | low")
 
 
 @router.get("/")
@@ -37,6 +40,10 @@ async def create_alert(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if req.channel not in _VALID_CHANNELS:
+        raise HTTPException(status_code=400, detail=f"허용 채널: {', '.join(sorted(_VALID_CHANNELS))}")
+    if req.severity_threshold not in _VALID_SEVERITY:
+        raise HTTPException(status_code=400, detail=f"허용 심각도: {', '.join(sorted(_VALID_SEVERITY))}")
     config = AlertConfig(
         user_id=user.id,
         channel=req.channel,
@@ -47,6 +54,23 @@ async def create_alert(
     await db.commit()
     await db.refresh(config)
     return {"id": config.id}
+
+
+@router.delete("/{alert_id}")
+async def delete_alert(
+    alert_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    res = await db.execute(
+        select(AlertConfig).where(AlertConfig.id == alert_id, AlertConfig.user_id == user.id)
+    )
+    row = res.scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="없는 알림 설정입니다.")
+    await db.delete(row)
+    await db.commit()
+    return {"status": "removed"}
 
 
 @router.get("/history")

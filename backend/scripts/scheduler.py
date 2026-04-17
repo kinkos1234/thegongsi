@@ -116,6 +116,38 @@ def run_scheduler():
         name="Daily 유/무상증자 ex-date incremental scan (list.json, last 14d)",
     )
 
+    # 매일 KST 08:00 = UTC 23:00 — 실적 공정공시 증분 수집
+    def daily_earnings_scan():
+        import subprocess
+        import os
+        subprocess.run(
+            ["python", "scripts/scan_earnings.py", "--days", "14"],
+            env=os.environ.copy(), check=False,
+        )
+
+    scheduler.add_job(
+        daily_earnings_scan,
+        CronTrigger(hour=23, minute=0, timezone="UTC"),
+        id="daily_earnings_scan",
+        name="Daily 잠정/확정실적 공정공시 수집 (last 14d)",
+    )
+
+    # 매주 일요일 KST 03:00 = UTC 토요일 18:00 — 핵심 테이블 JSONL 백업
+    def weekly_db_backup():
+        import subprocess
+        import os
+        subprocess.run(
+            ["python", "scripts/db_backup.py", "--out", "/tmp/backups"],
+            env=os.environ.copy(), check=False,
+        )
+
+    scheduler.add_job(
+        weekly_db_backup,
+        CronTrigger(day_of_week="sat", hour=18, minute=0, timezone="UTC"),
+        id="weekly_db_backup",
+        name="Weekly DB JSONL backup (13 tables)",
+    )
+
     logger.info(
         "Scheduler: 06:00 collect / 07:00 ex-dates / 07:30 dividend / Mon 07:00 index / Sat 05:00 market (KST)."
     )

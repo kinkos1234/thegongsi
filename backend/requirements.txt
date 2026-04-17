@@ -19,3 +19,4 @@ dart-fss>=0.4.10
 neo4j>=5.27.0
 pytest>=8.0
 pytest-asyncio>=0.23
+holidays>=0.60  # KR 공휴일 회피 (배당 ex-date T-1 영업일 계산)

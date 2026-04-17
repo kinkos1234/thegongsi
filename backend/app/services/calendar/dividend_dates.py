@@ -46,11 +46,34 @@ def _parse_date(raw: str) -> str | None:
         return None
 
 
+_KR_HOLIDAYS_CACHE: set[str] | None = None
+
+
+def _kr_holidays() -> set[str]:
+    """holidays 패키지 있으면 KR 공휴일 set, 없으면 빈 set."""
+    global _KR_HOLIDAYS_CACHE
+    if _KR_HOLIDAYS_CACHE is not None:
+        return _KR_HOLIDAYS_CACHE
+    try:
+        import holidays  # type: ignore
+        h = holidays.country_holidays("KR", years=[2023, 2024, 2025, 2026, 2027])
+        _KR_HOLIDAYS_CACHE = {d.isoformat() for d in h.keys()}
+    except Exception:
+        _KR_HOLIDAYS_CACHE = set()
+    return _KR_HOLIDAYS_CACHE
+
+
 def _prev_business_day(iso: str) -> str | None:
+    """배당기준일 T-1 거래일. KR 공휴일 회피 (holidays 패키지 있을 때).
+
+    한국 증시는 연말 12/31 휴장도 적용 → 캐시에 포함.
+    """
     try:
         d = date.fromisoformat(iso) - timedelta(days=1)
-        # 주말 회피 (공휴일은 반영 안함 — 근사치)
-        while d.weekday() >= 5:
+        hs = _kr_holidays()
+        # 연말 12/31 휴장도 추가
+        extra_holidays = {f"{y}-12-31" for y in range(2023, 2028)}
+        while d.weekday() >= 5 or d.isoformat() in hs or d.isoformat() in extra_holidays:
             d -= timedelta(days=1)
         return d.isoformat()
     except Exception:

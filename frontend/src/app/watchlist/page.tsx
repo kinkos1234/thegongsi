@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { EmptyState } from "@/components/Skeleton";
 
 type Item = { ticker: string; name: string | null; market: string | null; added_at: string };
@@ -9,12 +10,23 @@ type Item = { ticker: string; name: string | null; market: string | null; added_
 const TOKEN_KEY = "comad_stock_token";
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888";
 
+const MARKET_LABEL: Record<string, string> = {
+  KOSPI: "KOSPI",
+  KOSDAQ: "KOSDAQ",
+  KONEX: "KONEX",
+  UNKNOWN: "상장폐지/기타",
+};
+
 export default function WatchlistPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [ticker, setTicker] = useState("");
   const [days, setDays] = useState(90);
   const [token, setToken] = useState<string | null>(null);
-  const [backfilling, setBackfilling] = useState<{ ticker: string; count: number } | null>(null);
+  const [backfilling, setBackfilling] = useState<{
+    ticker: string;
+    count: number;
+    stage: "disclosures" | "memo" | "done";
+  } | null>(null);
 
   useEffect(() => {
     setToken(typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null);
@@ -31,23 +43,47 @@ export default function WatchlistPage() {
   }
 
   async function pollBackfill(t: string) {
-    // 1초 간격으로 disclosure 수 체크, 90초 타임아웃
-    for (let i = 0; i < 90; i++) {
+    // Stage 1: 공시 도착 감지 (최대 60초)
+    let count = 0;
+    for (let i = 0; i < 60; i++) {
       await new Promise((r) => setTimeout(r, 1000));
       try {
-        const r = await fetch(`${API}/api/disclosures/?ticker=${t}`);
+        const r = await fetch(`${API}/api/disclosures/?ticker=${t}&limit=1`);
         if (r.ok) {
           const list = await r.json();
           if (list.length > 0) {
-            setBackfilling({ ticker: t, count: list.length });
-            // 2초 유지 후 dismiss
-            await new Promise((r2) => setTimeout(r2, 2000));
-            setBackfilling(null);
-            return;
+            const cnt = await fetch(`${API}/api/disclosures/count?ticker=${t}`);
+            if (cnt.ok) {
+              count = (await cnt.json()).count ?? list.length;
+            } else {
+              count = list.length;
+            }
+            setBackfilling({ ticker: t, count, stage: "memo" });
+            break;
           }
         }
       } catch {}
     }
+    if (count === 0) {
+      setBackfilling(null);
+      return;
+    }
+    // Stage 2: DD 메모 생성 감지 (최대 60초)
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        const r = await fetch(`${API}/api/memos/${t}`);
+        if (r.ok) {
+          setBackfilling({ ticker: t, count, stage: "done" });
+          await new Promise((r2) => setTimeout(r2, 3000));
+          setBackfilling(null);
+          return;
+        }
+      } catch {}
+    }
+    // 메모 실패해도 공시는 도착했으니 done 처리
+    setBackfilling({ ticker: t, count, stage: "done" });
+    await new Promise((r) => setTimeout(r, 2000));
     setBackfilling(null);
   }
 
@@ -69,7 +105,7 @@ export default function WatchlistPage() {
     setTicker("");
     load(token);
     if (data.backfill?.startsWith("queued")) {
-      setBackfilling({ ticker: t, count: 0 });
+      setBackfilling({ ticker: t, count: 0, stage: "disclosures" });
       pollBackfill(t);
     }
   }
@@ -136,14 +172,30 @@ export default function WatchlistPage() {
       </form>
 
       {backfilling && (
-        <div className="fixed top-20 right-6 z-50 border-l-2 border-accent bg-bg-2 border border-border/50 px-4 py-3 flex items-center gap-3 shadow-lg">
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-20 right-6 z-50 border-l-2 border-accent bg-bg-2 border border-border/50 px-4 py-3 flex items-center gap-3 shadow-lg"
+        >
           <p className="text-[13px] text-fg-2">
-            <span className="mono text-accent">{backfilling.ticker}</span> 공시 백필 중…
-            {backfilling.count > 0 && (
-              <span className="mono text-fg-3 ml-2">({backfilling.count}건 도착)</span>
+            <span className="mono text-accent">{backfilling.ticker}</span>{" "}
+            {backfilling.stage === "disclosures" && "공시 백필 중…"}
+            {backfilling.stage === "memo" && (
+              <>
+                공시 <span className="mono text-fg">{backfilling.count}</span>건 · DD 메모 생성 중…
+              </>
+            )}
+            {backfilling.stage === "done" && (
+              <>
+                <span className="text-accent">완료</span> — 공시 {backfilling.count}건
+              </>
             )}
           </p>
-          <div className="h-2 w-2 rounded-full bg-accent animate-pulse" />
+          <div
+            className={`h-2 w-2 rounded-full ${
+              backfilling.stage === "done" ? "bg-accent" : "bg-accent animate-pulse"
+            }`}
+          />
         </div>
       )}
 
@@ -164,13 +216,15 @@ export default function WatchlistPage() {
               </span>
               <span className="mono text-[12px] text-fg-3">
                 {i.ticker}
-                {i.market && <span className="ml-2">· {i.market}</span>}
+                {i.market && <span className="ml-2">· {MARKET_LABEL[i.market] || i.market}</span>}
               </span>
             </Link>
             <button
               onClick={() => remove(i.ticker)}
-              className="mono text-[12px] text-fg-3 hover:text-sev-high"
+              aria-label={`${i.ticker} 관심종목에서 제거`}
+              className="mono text-[12px] text-fg-3 hover:text-sev-high inline-flex items-center gap-1"
             >
+              <X size={12} strokeWidth={1.75} />
               remove
             </button>
           </li>

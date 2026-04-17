@@ -229,6 +229,136 @@ export default function SettingsPage() {
         {msg && <p className="text-[13px] text-accent">{msg}</p>}
         {err && <p className="text-[13px] text-sev-high">⚠ {err}</p>}
       </form>
+
+      <AlertsSection token={token} />
     </main>
+  );
+}
+
+type Alert = {
+  id: string;
+  channel: string;
+  target: string;
+  severity: string;
+  active: boolean;
+};
+
+function AlertsSection({ token }: { token: string }) {
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [channel, setChannel] = useState<"telegram" | "slack" | "discord">("telegram");
+  const [target, setTarget] = useState("");
+  const [severity, setSeverity] = useState<"high" | "med" | "low">("med");
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    const r = await fetch(`${API}/api/alerts/`, { headers: { Authorization: `Bearer ${token}` } });
+    if (r.ok) setAlerts(await r.json());
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/api/alerts/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ channel, channel_target: target.trim(), severity_threshold: severity }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.detail || `HTTP ${r.status}`);
+      }
+      setTarget("");
+      load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "실패");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function remove(id: string) {
+    await fetch(`${API}/api/alerts/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    load();
+  }
+
+  const placeholder = {
+    telegram: "@username 또는 chat_id (예: -1001234567890)",
+    slack: "https://hooks.slack.com/services/…",
+    discord: "https://discord.com/api/webhooks/…",
+  }[channel];
+
+  return (
+    <section className="mt-20 border-t border-border/50 pt-10">
+      <p className="mono text-[12px] text-fg-3 uppercase tracking-wider">ALERTS</p>
+      <h2 className="mt-2 font-serif text-[28px] leading-[1.15]">이상 공시 알림</h2>
+      <p className="mt-3 text-[14px] text-fg-2 leading-[1.7]">
+        설정한 심각도 이상의 공시(유상증자·합병·소송 등)가 감지되면 선택한 채널로 전송됩니다.
+        Telegram은 bot token 등록 후 chat_id, Slack·Discord는 incoming webhook URL 사용.
+      </p>
+
+      <form onSubmit={add} className="mt-8 space-y-3">
+        <div className="flex flex-wrap gap-3">
+          <select
+            value={channel}
+            onChange={(e) => setChannel(e.target.value as typeof channel)}
+            className="bg-bg-2 border border-border px-3 py-2 mono text-[13px] focus:border-accent focus:outline-none"
+          >
+            <option value="telegram">Telegram</option>
+            <option value="slack">Slack</option>
+            <option value="discord">Discord</option>
+          </select>
+          <select
+            value={severity}
+            onChange={(e) => setSeverity(e.target.value as typeof severity)}
+            className="bg-bg-2 border border-border px-3 py-2 mono text-[13px] focus:border-accent focus:outline-none"
+          >
+            <option value="high">심각도 높음만</option>
+            <option value="med">중간 이상</option>
+            <option value="low">모든 공시</option>
+          </select>
+          <input
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            placeholder={placeholder}
+            className="flex-1 min-w-[260px] bg-bg-2 border border-border px-3 py-2 mono text-[13px] focus:border-accent focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={loading || target.trim().length < 5}
+            className="mono text-[13px] text-accent border border-accent px-4 py-2 hover:bg-accent-dim transition-colors disabled:opacity-40"
+          >
+            {loading ? "…" : "추가"}
+          </button>
+        </div>
+        {err && <p className="text-[13px] text-sev-high">⚠ {err}</p>}
+      </form>
+
+      <ul className="mt-8 border-t border-border/40">
+        {alerts.length === 0 && (
+          <li className="py-6 text-[13px] text-fg-3">설정된 알림 없음</li>
+        )}
+        {alerts.map((a) => (
+          <li key={a.id} className="flex items-center justify-between border-b border-border/40 py-3 gap-4">
+            <div className="min-w-0">
+              <p className="mono text-[12px] text-fg-3 uppercase tracking-wider">
+                {a.channel} · {a.severity}
+              </p>
+              <p className="text-[13px] text-fg truncate">{a.target}</p>
+            </div>
+            <button
+              onClick={() => remove(a.id)}
+              className="mono text-[12px] text-fg-3 hover:text-sev-high shrink-0"
+              aria-label={`${a.channel} 알림 제거`}
+            >
+              remove
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
