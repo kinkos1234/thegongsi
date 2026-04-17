@@ -100,8 +100,24 @@ def run_scheduler():
         name="Daily dividend ex-date incremental scan (last 14d)",
     )
 
+    # 매일 KST 07:00 = UTC 22:00 — 유/무상증자 권리락 증분 스캔 (list.json 기반, 저비용)
+    def daily_ex_dates_scan():
+        import subprocess
+        import os
+        subprocess.run(
+            ["python", "scripts/scan_ex_dates_v2.py", "--days", "14"],
+            env=os.environ.copy(), check=False,
+        )
+
+    scheduler.add_job(
+        daily_ex_dates_scan,
+        CronTrigger(hour=22, minute=0, timezone="UTC"),
+        id="daily_ex_dates_scan",
+        name="Daily 유/무상증자 ex-date incremental scan (list.json, last 14d)",
+    )
+
     logger.info(
-        "Scheduler: Daily 06:00 collect + 07:30 dividend scan; Mon 07:00 index sync; Sat 05:00 market refresh (KST)."
+        "Scheduler: 06:00 collect / 07:00 ex-dates / 07:30 dividend / Mon 07:00 index / Sat 05:00 market (KST)."
     )
     try:
         scheduler.start()
