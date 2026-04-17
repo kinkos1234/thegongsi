@@ -71,13 +71,18 @@ def _normalize_date(raw: str | None) -> str | None:
 async def _dart_fetch(client: httpx.AsyncClient, endpoint: str, corp_code: str, bgn_de: str, end_de: str, api_key: str) -> list[dict]:
     url = f"https://opendart.fss.or.kr/api/{endpoint}.json"
     params = {"crtfc_key": api_key, "corp_code": corp_code, "bgn_de": bgn_de, "end_de": end_de}
-    try:
-        resp = await client.get(url, params=params, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        logger.warning(f"DART {endpoint} {corp_code} 실패: {e}")
-        return []
+    # DART는 소수 병렬 연결 권장. 2회 retry + backoff로 RemoteDisconnected 흡수.
+    for attempt in range(3):
+        try:
+            resp = await client.get(url, params=params, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except Exception as e:
+            if attempt == 2:
+                logger.warning(f"DART {endpoint} {corp_code} 실패 (3회 재시도 후): {type(e).__name__} {e}")
+                return []
+            await asyncio.sleep(0.5 * (attempt + 1))
     if data.get("status") not in ("000", "013"):
         if data.get("status") != "013":
             logger.debug(f"DART {endpoint} status={data.get('status')} msg={data.get('message')}")
@@ -110,7 +115,7 @@ async def scan_ex_dates(
     tickers: list[tuple[str, str]],  # [(ticker, corp_code), ...]
     days_back: int = 60,
     api_key: str | None = None,
-    concurrency: int = 20,
+    concurrency: int = 5,
 ) -> list[dict]:
     """지정 종목군의 최근 days_back일 내 공시에서 ex-date 이벤트 추출 (parallel)."""
     api_key = api_key or os.environ.get("DART_API_KEY", "")
