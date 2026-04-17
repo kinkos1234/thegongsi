@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     slack_webhook_url: str = ""
     discord_webhook_url: str = ""
+    # GitHub Actions → /api/admin/jobs/{id} 트리거용 공유 비밀.
+    # 비어 있으면 admin_jobs 라우터는 모든 요청을 503으로 거부 (프로덕션에서 반드시 설정).
+    admin_jobs_token: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

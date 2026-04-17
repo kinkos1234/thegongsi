@@ -1,0 +1,97 @@
+name: cron triggers
+
+# Fly.io 머신이 min_machines_running=0으로 idle 시 정지하므로 in-process
+# APScheduler가 실행되지 못한다. 대신 GitHub Actions가 각 시각에 Fly의 admin
+# 엔드포인트를 curl해 job을 트리거한다 (auto_start_machines=true로 머신이 깨어남).
+#
+# 비밀 설정 (Settings → Secrets → Actions):
+#   FLY_API_BASE   = https://the-gongsi-api.fly.dev
+#   ADMIN_JOBS_TOKEN = <`fly secrets set ADMIN_JOBS_TOKEN=...` 에 쓴 값과 동일>
+
+on:
+  schedule:
+    # === 매일 (UTC) ===
+    # KST 06:00 = UTC 21:00 — daily_collection
+    - cron: '0 21 * * *'
+    # KST 07:00 = UTC 22:00 — daily_ex_dates_scan
+    - cron: '0 22 * * *'
+    # KST 07:30 = UTC 22:30 — daily_dividend_scan
+    - cron: '30 22 * * *'
+    # KST 08:00 = UTC 23:00 — daily_earnings_scan
+    - cron: '0 23 * * *'
+    # === 매주 (UTC) ===
+    # KST 월 07:00 = UTC 일 22:00 — weekly_index_sync
+    - cron: '0 22 * * 0'
+    # KST 토 05:00 = UTC 금 20:00 — weekly_market_refresh (seed + enrich)
+    - cron: '0 20 * * 5'
+    # KST 일 03:00 = UTC 토 18:00 — weekly_db_backup
+    - cron: '0 18 * * 6'
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: '수동 트리거할 job_id (예: daily_earnings_scan)'
+        required: true
+        type: choice
+        options:
+          - daily_collection
+          - daily_ex_dates_scan
+          - daily_dividend_scan
+          - daily_earnings_scan
+          - weekly_index_sync
+          - weekly_market_refresh_seed
+          - weekly_market_refresh_enrich
+          - weekly_db_backup
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve job_id from schedule
+        id: resolve
+        run: |
+          set -e
+          # workflow_dispatch: inputs.job_id 사용
+          if [ -n "${{ inputs.job_id }}" ]; then
+            echo "jobs=${{ inputs.job_id }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # schedule: github.event.schedule 매핑
+          case "${{ github.event.schedule }}" in
+            "0 21 * * *")   echo "jobs=daily_collection" >> "$GITHUB_OUTPUT" ;;
+            "0 22 * * *")   echo "jobs=daily_ex_dates_scan" >> "$GITHUB_OUTPUT" ;;
+            "30 22 * * *")  echo "jobs=daily_dividend_scan" >> "$GITHUB_OUTPUT" ;;
+            "0 23 * * *")   echo "jobs=daily_earnings_scan" >> "$GITHUB_OUTPUT" ;;
+            "0 22 * * 0")   echo "jobs=weekly_index_sync" >> "$GITHUB_OUTPUT" ;;
+            # weekly_market_refresh는 seed + enrich 순차
+            "0 20 * * 5")   echo "jobs=weekly_market_refresh_seed,weekly_market_refresh_enrich" >> "$GITHUB_OUTPUT" ;;
+            "0 18 * * 6")   echo "jobs=weekly_db_backup" >> "$GITHUB_OUTPUT" ;;
+            *)              echo "Unknown schedule: ${{ github.event.schedule }}" >&2; exit 1 ;;
+          esac
+
+      - name: Trigger Fly admin jobs
+        env:
+          FLY_API_BASE: ${{ secrets.FLY_API_BASE }}
+          ADMIN_JOBS_TOKEN: ${{ secrets.ADMIN_JOBS_TOKEN }}
+          JOBS: ${{ steps.resolve.outputs.jobs }}
+        run: |
+          set -eu
+          if [ -z "${FLY_API_BASE:-}" ] || [ -z "${ADMIN_JOBS_TOKEN:-}" ]; then
+            echo "FLY_API_BASE or ADMIN_JOBS_TOKEN not set in secrets" >&2
+            exit 1
+          fi
+          IFS=','
+          for job in $JOBS; do
+            echo "→ triggering $job"
+            resp=$(curl -sS -o /tmp/resp.json -w "%{http_code}" \
+              -X POST \
+              -H "X-Admin-Token: $ADMIN_JOBS_TOKEN" \
+              -H "Content-Type: application/json" \
+              "$FLY_API_BASE/api/admin/jobs/$job")
+            cat /tmp/resp.json; echo
+            if [ "$resp" != "200" ] && [ "$resp" != "202" ]; then
+              echo "trigger failed: HTTP $resp" >&2
+              exit 1
+            fi
+            # weekly_market_refresh의 seed → enrich 사이에 짧게 쉼 (seed가 enrich보다 먼저 끝나도록)
+            sleep 5
+          done

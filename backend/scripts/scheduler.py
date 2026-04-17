@@ -1,7 +1,12 @@
-"""데이터 수집 + 알림 스케줄러. stock-strategy 뼈대 이식.
+"""데이터 수집 + 알림 스케줄러 — **로컬 개발용만**.
 
-사용법:
-    python scripts/scheduler.py              # 매일 KST 06:00 자동 실행
+프로덕션은 GitHub Actions cron이 `/api/admin/jobs/{id}`를 트리거한다
+(`.github/workflows/cron.yml`, `app/routers/admin_jobs.py`). Fly가
+`min_machines_running=0`이라 in-process APScheduler는 idle 시 죽기 때문.
+이 파일은 로컬 개발 중 전체 스케줄을 blocking으로 돌려보고 싶을 때만 사용.
+
+사용법 (로컬):
+    python scripts/scheduler.py              # 매일 KST 06:00 자동 실행 (blocking)
     python scripts/scheduler.py --once       # 즉시 1회 (수집만)
     python scripts/scheduler.py --once --alerts  # 즉시 1회 + 알림 체크
 """

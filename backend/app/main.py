@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db
-from app.routers import auth, calendar, companies, disclosures, memos, watchlist, alerts, qa, byok, quotes, earnings, feedback, graph
+from app.routers import auth, calendar, companies, disclosures, memos, watchlist, alerts, qa, byok, quotes, earnings, feedback, graph, admin_jobs
 
 
 @asynccontextmanager
@@ -49,6 +49,7 @@ app.include_router(earnings.router, prefix="/api/earnings", tags=["earnings"])
 app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
 app.include_router(graph.router, prefix="/api/graph", tags=["graph"])
 app.include_router(calendar.router, prefix="/api/calendar", tags=["calendar"])
+app.include_router(admin_jobs.router, prefix="/api/admin/jobs", tags=["admin-jobs"])
 
 
 @app.get("/api/health")
