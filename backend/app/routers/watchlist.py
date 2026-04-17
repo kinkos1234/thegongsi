@@ -13,14 +13,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def _backfill_task(ticker: str, days: int):
-    """watchlist 추가 시 백그라운드 실행 — DART 공시 N일치 + anomaly scan."""
+async def _backfill_task(ticker: str, days: int, user_id: str | None = None):
+    """watchlist 추가 시 백그라운드 실행 — DART 공시 N일치 + anomaly + DD 메모 자동 생성."""
     from app.services.collectors.dart import backfill_ticker
     try:
         result = await backfill_ticker(ticker, days=days)
         logger.info(f"watchlist backfill {ticker}: {result}")
     except Exception as e:
         logger.exception(f"watchlist backfill {ticker} failed: {e}")
+        return
+
+    # 공시 수집 성공 후 DD 메모 자동 생성 (BYOK/서버키 fallback 내부 처리)
+    if result.get("status") == "ok" and result.get("inserted", 0) >= 0:
+        try:
+            from app.services.memo.generator import generate_memo
+            memo_result = await generate_memo(ticker, user_id=user_id)
+            logger.info(f"watchlist auto-memo {ticker}: version={memo_result.get('version')}")
+        except Exception as e:
+            # quota/no-key/API 에러는 사용자 경험 저하 없이 스킵
+            logger.warning(f"watchlist auto-memo {ticker} skipped: {e}")
 
 
 class AddRequest(BaseModel):
@@ -64,10 +75,10 @@ async def add_watchlist(
     db.add(item)
     await db.commit()
 
-    # 백그라운드: 최근 N일 공시 백필 + anomaly scan (blocking 없이)
+    # 백그라운드: 최근 N일 공시 백필 + anomaly scan + DD 메모 자동 생성
     backfill_status = "skipped"
     if req.backfill_days > 0:
-        background.add_task(_backfill_task, req.ticker, req.backfill_days)
+        background.add_task(_backfill_task, req.ticker, req.backfill_days, user.id)
         backfill_status = f"queued_{req.backfill_days}d"
 
     return {"ticker": req.ticker, "status": "added", "backfill": backfill_status}
