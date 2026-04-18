@@ -1,15 +1,13 @@
-# 한국 대표 공급망 seed 데이터 (2026-04-18)
+# 한국 대표 공급망 seed 데이터 (2026-04-18 확장)
 # 형식: { customer: "고객사", customer_ticker: "티커", suppliers: [{ ticker, name, role }] }
-# 이 파일은 "널리 알려진" 관계만 hardcode. 장기 확장은 supply_chain_extractor.py
-# 로 공시/뉴스에서 자동 추출하는 경로 (Phase 2).
 #
-# role: equipment(장비) / material(소재) / component(부품) / foundry / ip
+# role: equipment(장비) / material(소재) / component(부품) / foundry / ip / service / content
 #
 # 기준: 2024-2026 공시·사업보고서·뉴스 기반 정사. 변동 가능성 있는 관계는
-# 배제. 추가/수정 시 commit message에 근거 URL 명시 권장.
+# 배제. 추가/수정 시 commit message에 근거 명시 권장.
 
 domain: korean-supply-chains
-version: 1
+version: 2
 last_updated: 2026-04-18
 
 chains:
@@ -18,13 +16,18 @@ chains:
     customer_ticker: "000660"
     category: HBM
     suppliers:
-      - { ticker: "042700", name: 한미반도체, role: equipment }   # TC bonder
-      - { ticker: "240810", name: 원익IPS, role: equipment }       # ALD
-      - { ticker: "123860", name: 이오테크닉스, role: equipment }   # 레이저
-      - { ticker: "317690", name: 피에스케이, role: equipment }     # strip/etch
-      - { ticker: "036810", name: 에프에스티, role: material }       # EUV pellicle
-      - { ticker: "036490", name: SK머티리얼즈, role: material }     # 특수가스
-      - { ticker: "003670", name: 포스코퓨처엠, role: material }     # 음극재 (미세한 관련)
+      - { ticker: "042700", name: 한미반도체, role: equipment }
+      - { ticker: "240810", name: 원익IPS, role: equipment }
+      - { ticker: "123860", name: 이오테크닉스, role: equipment }
+      - { ticker: "317690", name: 피에스케이, role: equipment }
+      - { ticker: "036810", name: 에프에스티, role: material }
+      - { ticker: "036490", name: SK머티리얼즈, role: material }
+      - { ticker: "003670", name: 포스코퓨처엠, role: material }
+      - { ticker: "060720", name: KH바텍, role: component }
+      - { ticker: "084370", name: 유진테크, role: equipment }
+      - { ticker: "103590", name: 일진전기, role: component }
+      - { ticker: "095610", name: 테스, role: equipment }
+      - { ticker: "322000", name: HD현대에너지솔루션, role: service }
 
   - customer: 삼성전자
     customer_ticker: "005930"
@@ -32,21 +35,54 @@ chains:
     suppliers:
       - { ticker: "042700", name: 한미반도체, role: equipment }
       - { ticker: "123860", name: 이오테크닉스, role: equipment }
-      - { ticker: "357780", name: 솔브레인홀딩스, role: material }   # 식각액
-      - { ticker: "005070", name: 코스모신소재, role: material }     # OLED 소재
+      - { ticker: "357780", name: 솔브레인홀딩스, role: material }
+      - { ticker: "005070", name: 코스모신소재, role: material }
       - { ticker: "112610", name: 씨에스윈드, role: component }
+      - { ticker: "084370", name: 유진테크, role: equipment }
+      - { ticker: "240810", name: 원익IPS, role: equipment }
+      - { ticker: "319400", name: 하이비젼시스템, role: equipment }
+      - { ticker: "140860", name: 파크시스템스, role: equipment }
+      - { ticker: "030530", name: 원익홀딩스, role: equipment }
+      - { ticker: "058470", name: 리노공업, role: component }
+      - { ticker: "148150", name: 세경하이테크, role: material }
+      - { ticker: "036200", name: 유니셈, role: equipment }
+      - { ticker: "183300", name: 코미코, role: service }
+      - { ticker: "058430", name: 포스코스틸리온, role: material }
+
+  # === 반도체 후공정 / 패키징 ===
+  - customer: 삼성전자
+    customer_ticker: "005930"
+    category: semiconductor_back_end
+    suppliers:
+      - { ticker: "084370", name: 유진테크, role: equipment }
+      - { ticker: "335890", name: 비아트론, role: equipment }
+      - { ticker: "446070", name: 엘에스이링크, role: component }
+
+  # === 파운드리 (삼성파운드리 생태계) ===
+  - customer: 삼성전자
+    customer_ticker: "005930"
+    category: foundry
+    suppliers:
+      - { ticker: "000990", name: DB하이텍, role: foundry }
+      - { ticker: "041960", name: 코미팜, role: service }
+      - { ticker: "122990", name: 와이솔, role: component }
+      - { ticker: "131970", name: 두산테스나, role: service }
 
   # === 2차전지 ===
   - customer: LG에너지솔루션
     customer_ticker: "373220"
     category: battery
     suppliers:
-      - { ticker: "247540", name: 에코프로비엠, role: material }     # 양극재
-      - { ticker: "066970", name: 엘앤에프, role: material }         # 양극재
-      - { ticker: "278280", name: 천보, role: material }             # 전해액 첨가제
-      - { ticker: "003670", name: 포스코퓨처엠, role: material }     # 음극재
-      - { ticker: "101490", name: 에스앤에스텍, role: material }     # 분리막
-      - { ticker: "131970", name: 두산테스나, role: equipment }      # 검사장비
+      - { ticker: "247540", name: 에코프로비엠, role: material }
+      - { ticker: "066970", name: 엘앤에프, role: material }
+      - { ticker: "278280", name: 천보, role: material }
+      - { ticker: "003670", name: 포스코퓨처엠, role: material }
+      - { ticker: "101490", name: 에스앤에스텍, role: material }
+      - { ticker: "131970", name: 두산테스나, role: equipment }
+      - { ticker: "403870", name: HPSP, role: equipment }
+      - { ticker: "336370", name: 솔루엠, role: component }
+      - { ticker: "006400", name: 삼성SDI, role: component }
+      - { ticker: "192650", name: 피엔티, role: equipment }
 
   - customer: 삼성SDI
     customer_ticker: "006400"
@@ -56,6 +92,17 @@ chains:
       - { ticker: "247540", name: 에코프로비엠, role: material }
       - { ticker: "003670", name: 포스코퓨처엠, role: material }
       - { ticker: "066970", name: 엘앤에프, role: material }
+      - { ticker: "278280", name: 천보, role: material }
+      - { ticker: "192650", name: 피엔티, role: equipment }
+      - { ticker: "078350", name: 한양이엔지, role: equipment }
+
+  - customer: SK온
+    customer_ticker: "096770"    # SK이노베이션 (SK온 모회사)
+    category: battery
+    suppliers:
+      - { ticker: "247540", name: 에코프로비엠, role: material }
+      - { ticker: "066970", name: 엘앤에프, role: material }
+      - { ticker: "003670", name: 포스코퓨처엠, role: material }
 
   # === 디스플레이 ===
   - customer: LG디스플레이
@@ -65,16 +112,22 @@ chains:
       - { ticker: "108860", name: 셀바스AI, role: component }
       - { ticker: "053610", name: 프로텍, role: equipment }
       - { ticker: "005070", name: 코스모신소재, role: material }
+      - { ticker: "053450", name: 세코닉스, role: component }
+      - { ticker: "060480", name: 피앤텔, role: component }
 
-  # === 자동차 / 배터리 수직 ===
+  # === 자동차 / 전장 ===
   - customer: 현대자동차
     customer_ticker: "005380"
     category: automotive
     suppliers:
-      - { ticker: "018880", name: 한온시스템, role: component }       # HVAC
-      - { ticker: "012330", name: 현대모비스, role: component }       # 모듈
-      - { ticker: "011210", name: 현대위아, role: component }         # 동력계
+      - { ticker: "018880", name: 한온시스템, role: component }
+      - { ticker: "012330", name: 현대모비스, role: component }
+      - { ticker: "011210", name: 현대위아, role: component }
       - { ticker: "161390", name: 한국타이어앤테크놀로지, role: component }
+      - { ticker: "204320", name: HL만도, role: component }
+      - { ticker: "073240", name: 금호타이어, role: component }
+      - { ticker: "015260", name: HDC현대산업개발, role: service }
+      - { ticker: "002350", name: 넥센타이어, role: component }
 
   - customer: 기아
     customer_ticker: "000270"
@@ -83,3 +136,83 @@ chains:
       - { ticker: "012330", name: 현대모비스, role: component }
       - { ticker: "018880", name: 한온시스템, role: component }
       - { ticker: "161390", name: 한국타이어앤테크놀로지, role: component }
+      - { ticker: "204320", name: HL만도, role: component }
+      - { ticker: "073240", name: 금호타이어, role: component }
+      - { ticker: "002350", name: 넥센타이어, role: component }
+
+  # === 콘텐츠 · 엔터 ===
+  - customer: 하이브
+    customer_ticker: "352820"
+    category: entertainment
+    suppliers:
+      - { ticker: "041510", name: 에스엠, role: content }
+      - { ticker: "035900", name: JYP엔터테인먼트, role: content }
+
+  - customer: 카카오
+    customer_ticker: "035720"
+    category: platform
+    suppliers:
+      - { ticker: "035900", name: JYP엔터테인먼트, role: content }
+      - { ticker: "293490", name: 카카오게임즈, role: content }
+      - { ticker: "323410", name: 카카오뱅크, role: service }
+
+  # === 게임 ===
+  - customer: 엔씨소프트
+    customer_ticker: "036570"
+    category: gaming
+    suppliers:
+      - { ticker: "263750", name: 펄어비스, role: content }
+
+  # === 제약 / 바이오 ===
+  - customer: 셀트리온
+    customer_ticker: "068270"
+    category: bio
+    suppliers:
+      - { ticker: "207940", name: 삼성바이오로직스, role: service }   # CDMO
+      - { ticker: "326030", name: SK바이오팜, role: ip }
+
+  - customer: 한미약품
+    customer_ticker: "128940"
+    category: pharma
+    suppliers:
+      - { ticker: "006280", name: 녹십자, role: material }
+
+  # === 조선 / 방산 ===
+  - customer: HD한국조선해양
+    customer_ticker: "009540"
+    category: shipbuilding
+    suppliers:
+      - { ticker: "042670", name: HD현대인프라코어, role: component }
+      - { ticker: "267260", name: HD현대일렉트릭, role: component }
+      - { ticker: "012450", name: 한화에어로스페이스, role: component }
+
+  - customer: 한화에어로스페이스
+    customer_ticker: "012450"
+    category: defense
+    suppliers:
+      - { ticker: "272210", name: 한화시스템, role: service }
+      - { ticker: "079550", name: LIG넥스원, role: component }
+      - { ticker: "047810", name: 한국항공우주, role: component }
+      - { ticker: "065450", name: 빅텍, role: component }
+
+  - customer: 한화시스템
+    customer_ticker: "272210"
+    category: defense
+    suppliers:
+      - { ticker: "065450", name: 빅텍, role: component }
+      - { ticker: "079550", name: LIG넥스원, role: service }
+
+  # === 2차전지 장비 ===
+  - customer: 삼성SDI
+    customer_ticker: "006400"
+    category: battery_equipment
+    suppliers:
+      - { ticker: "192650", name: 피엔티, role: equipment }
+      - { ticker: "121600", name: 나노신소재, role: material }
+
+  # === 플랫폼 / 클라우드 ===
+  - customer: 네이버
+    customer_ticker: "035420"
+    category: platform
+    suppliers:
+      - { ticker: "181710", name: NHN, role: service }

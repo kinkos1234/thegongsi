@@ -223,7 +223,8 @@ async def trigger_job(
         result = await _run_graph_ping()
     elif argv == "inline" and job_id == "extract_supply_chains":
         from app.services.graph.supply_chain_extractor import extract_supply_chains
-        result = await extract_supply_chains(days_back=14, max_filings=30)
+        # 초기 bootstrap: 90일 / 최대 100건. 정기 운영 시엔 이 값을 줄일 것.
+        result = await extract_supply_chains(days_back=90, max_filings=100)
     else:
         assert isinstance(argv, list)
         result = await asyncio.to_thread(_run_subprocess_sync, argv, job_id)
