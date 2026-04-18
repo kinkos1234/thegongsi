@@ -22,14 +22,22 @@ async def send_telegram(chat_id: str, message: str) -> bool:
         return False
     url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
     async with httpx.AsyncClient() as client:
-        resp = await client.post(url, json={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"})
-        return resp.status_code == 200
+        try:
+            resp = await client.post(url, json={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}, timeout=10)
+            return resp.status_code == 200
+        except Exception as e:
+            logger.warning("telegram send failed: %s", e)
+            return False
 
 
 async def send_slack(webhook_url: str, message: str) -> bool:
     async with httpx.AsyncClient() as client:
-        resp = await client.post(webhook_url, json={"text": message})
-        return resp.status_code == 200
+        try:
+            resp = await client.post(webhook_url, json={"text": message}, timeout=10)
+            return resp.status_code == 200
+        except Exception as e:
+            logger.warning("slack send failed: %s", e)
+            return False
 
 
 SEVERITY_COLOR = {
@@ -45,8 +53,12 @@ DART_VIEW_URL = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}"
 async def send_discord(webhook_url: str, message: str) -> bool:
     """평문 content 전송 (user-level alert, Slack 포맷 호환)."""
     async with httpx.AsyncClient() as client:
-        resp = await client.post(webhook_url, json={"content": message})
-        return resp.status_code in (200, 204)
+        try:
+            resp = await client.post(webhook_url, json={"content": message}, timeout=10)
+            return resp.status_code in (200, 204)
+        except Exception as e:
+            logger.warning("discord send failed: %s", e)
+            return False
 
 
 async def send_discord_embed(webhook_url: str, disclosure: Disclosure) -> bool:

@@ -44,6 +44,14 @@ async def create_alert(
         raise HTTPException(status_code=400, detail=f"허용 채널: {', '.join(sorted(_VALID_CHANNELS))}")
     if req.severity_threshold not in _VALID_SEVERITY:
         raise HTTPException(status_code=400, detail=f"허용 심각도: {', '.join(sorted(_VALID_SEVERITY))}")
+    # target 포맷 최소 검증 — 채널별 prefix 및 길이
+    tgt = req.channel_target.strip()
+    if req.channel == "discord" and not tgt.startswith("https://discord.com/api/webhooks/"):
+        raise HTTPException(status_code=400, detail="Discord webhook URL은 https://discord.com/api/webhooks/… 형식이어야 합니다.")
+    if req.channel == "slack" and not tgt.startswith("https://hooks.slack.com/"):
+        raise HTTPException(status_code=400, detail="Slack webhook URL은 https://hooks.slack.com/… 형식이어야 합니다.")
+    if req.channel == "telegram" and not (tgt.startswith("-") or tgt.startswith("@") or tgt.isdigit()):
+        raise HTTPException(status_code=400, detail="Telegram은 chat_id(숫자 · -숫자) 또는 @username 형식이어야 합니다.")
     config = AlertConfig(
         user_id=user.id,
         channel=req.channel,
