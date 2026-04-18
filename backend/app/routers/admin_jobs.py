@@ -54,6 +54,8 @@ router = APIRouter()
 # job_id → (argv, description). "inline" job은 특별 처리.
 JOBS: dict[str, tuple[list[str] | str, str]] = {
     "graph_ping": ("inline", "Neo4j 가벼운 Cypher 핑 (AuraDB idle-hibernate 방지)"),
+    "seed_supply_chains": (["scripts/seed_supply_chains.py"], "공급망 seed YAML → Neo4j SUPPLIES 엣지 upsert"),
+    "extract_supply_chains": ("inline", "최근 공시에서 공급 관계 LLM 추출 → Neo4j SUPPLIES upsert"),
     "daily_collection": ("inline", "DART/KRX 일일 수집 + 알림 체크"),
     "weekly_index_sync": (
         ["scripts/weekly_sync.py"],
@@ -219,6 +221,9 @@ async def trigger_job(
         result = await _run_daily_collection()
     elif argv == "inline" and job_id == "graph_ping":
         result = await _run_graph_ping()
+    elif argv == "inline" and job_id == "extract_supply_chains":
+        from app.services.graph.supply_chain_extractor import extract_supply_chains
+        result = await extract_supply_chains(days_back=14, max_filings=30)
     else:
         assert isinstance(argv, list)
         result = await asyncio.to_thread(_run_subprocess_sync, argv, job_id)
