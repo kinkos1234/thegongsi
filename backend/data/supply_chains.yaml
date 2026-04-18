@@ -396,5 +396,186 @@ chains:
       - { ticker: "005180", name: 빙그레, role: input }
 
   # =====================================================================
+  # 금융 / 은행 / 증권
+  # =====================================================================
+  - customer: KB금융
+    customer_ticker: "105560"
+    category: finance
+    suppliers:
+      - { ticker: "377300", name: 카카오페이, role: service }
+
+  - customer: 신한지주
+    customer_ticker: "055550"
+    category: finance
+    suppliers:
+      - { ticker: "016360", name: 신한증권, role: service }
+
+  - customer: 하나금융지주
+    customer_ticker: "086790"
+    category: finance
+    suppliers:
+      - { ticker: "030210", name: 하나증권, role: service }
+
+  - customer: 메리츠금융지주
+    customer_ticker: "138040"
+    category: finance
+    suppliers:
+      - { ticker: "000060", name: 메리츠화재, role: service }
+
+  # =====================================================================
+  # 의류 / 패션 (원단 / 제조 / 브랜드)
+  # =====================================================================
+  - customer: F&F
+    customer_ticker: "383220"
+    category: fashion
+    suppliers:
+      - { ticker: "020000", name: 한섬, role: input }
+
+  - customer: 휠라홀딩스
+    customer_ticker: "081660"
+    category: fashion
+    suppliers:
+      - { ticker: "020000", name: 한섬, role: input }
+
+  - customer: 삼성물산
+    customer_ticker: "028260"
+    category: fashion
+    suppliers:
+      - { ticker: "020000", name: 한섬, role: input }
+
+  # =====================================================================
+  # 해운 / 선박
+  # =====================================================================
+  - customer: HMM
+    customer_ticker: "011200"
+    category: shipping
+    suppliers:
+      - { ticker: "009540", name: HD한국조선해양, role: component }   # 신조 선박
+
+  - customer: 팬오션
+    customer_ticker: "028670"
+    category: shipping
+    suppliers:
+      - { ticker: "009540", name: HD한국조선해양, role: component }
+
+  - customer: 대한해운
+    customer_ticker: "005880"
+    category: shipping
+    suppliers:
+      - { ticker: "009540", name: HD한국조선해양, role: component }
+
+  # =====================================================================
+  # 교육 / 학습지
+  # =====================================================================
+  - customer: 메가스터디교육
+    customer_ticker: "215200"
+    category: education
+    suppliers:
+      - { ticker: "017650", name: 웅진, role: content }
+
+  - customer: 웅진씽크빅
+    customer_ticker: "095720"
+    category: education
+    suppliers:
+      - { ticker: "017650", name: 웅진, role: content }
+
+  - customer: YBM넷
+    customer_ticker: "057030"
+    category: education
+    suppliers:
+      - { ticker: "215200", name: 메가스터디교육, role: content }
+
+  # =====================================================================
+  # 의료기기 / 헬스케어
+  # =====================================================================
+  - customer: 삼성전자
+    customer_ticker: "005930"
+    category: medical
+    suppliers:
+      - { ticker: "228670", name: 레이언스, role: component }         # 디지털 X-ray
+
+  - customer: 클래시스
+    customer_ticker: "214150"
+    category: medical
+    suppliers:
+      - { ticker: "240810", name: 원익IPS, role: equipment }
+
+  # =====================================================================
+  # IT SI (시스템 통합)
+  # =====================================================================
+  - customer: 삼성SDS
+    customer_ticker: "018260"
+    category: IT_service
+    suppliers:
+      - { ticker: "042000", name: 카페24, role: service }
+
+  - customer: 롯데정보통신
+    customer_ticker: "286940"
+    category: IT_service
+    suppliers:
+      - { ticker: "030520", name: 한글과컴퓨터, role: service }
+
+  # =====================================================================
+  # 보안 / 사이버시큐리티
+  # =====================================================================
+  - customer: SK텔레콤
+    customer_ticker: "017670"
+    category: security
+    suppliers:
+      - { ticker: "053800", name: 안랩, role: service }
+
+  - customer: KT
+    customer_ticker: "030200"
+    category: security
+    suppliers:
+      - { ticker: "053800", name: 안랩, role: service }
+
+  - customer: 국민은행
+    customer_ticker: "105560"
+    category: security
+    suppliers:
+      - { ticker: "053800", name: 안랩, role: service }
+
+  # =====================================================================
+  # 케이블 / 커넥터 / 전선
+  # =====================================================================
+  - customer: HD현대일렉트릭
+    customer_ticker: "267260"
+    category: electrical
+    suppliers:
+      - { ticker: "103590", name: 일진전기, role: component }
+
+  - customer: 한국전력공사
+    customer_ticker: "015760"
+    category: electrical
+    suppliers:
+      - { ticker: "103590", name: 일진전기, role: component }
+      - { ticker: "267260", name: HD현대일렉트릭, role: component }
+
+  # =====================================================================
+  # 카지노 / 관광 (원료 식품 → 카지노 운영)
+  # =====================================================================
+  - customer: 파라다이스
+    customer_ticker: "034230"
+    category: tourism
+    suppliers:
+      - { ticker: "005300", name: 롯데칠성, role: input }
+
+  # =====================================================================
+  # 반도체 팹리스 (팹리스 → 파운드리)
+  # =====================================================================
+  - customer: 텔레칩스
+    customer_ticker: "054450"
+    category: fabless
+    suppliers:
+      - { ticker: "000990", name: DB하이텍, role: foundry }
+
+  - customer: 어보브반도체
+    customer_ticker: "102120"
+    category: fabless
+    suppliers:
+      - { ticker: "000990", name: DB하이텍, role: foundry }
+
+  # =====================================================================
   # 타이어 (원료 고무 → 타이어 → 자동차 이미 위에 걸림)
   # =====================================================================
