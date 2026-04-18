@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,6 +11,12 @@ from app.routers import auth, calendar, companies, disclosures, memos, watchlist
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # httpx/httpcore 는 기본 INFO 레벨에서 요청 URL을 통째로 로그에 찍는다.
+    # scan_ex_dates_v2.py 등에서 fetch 호출 시 `?crtfc_key=<평문>` 가 로그에
+    # 남고, admin_jobs가 그 stderr tail을 Actions 응답에 넣으면 public
+    # repo의 Actions 로그에 유출됨 (2026-04-18 사건). WARNING으로 올린다.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     await init_db()
     yield
 

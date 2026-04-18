@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -27,6 +28,25 @@ from fastapi import APIRouter, Header, HTTPException, status
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# URL query-string 안의 키·토큰 값을 REDACTED로 치환. stdout/stderr tail을
+# Actions 응답 바디에 넣기 전에 반드시 통과시킨다 — public repo의 Actions
+# 로그는 누구나 볼 수 있으므로 평문 키가 노출되면 즉시 rotation 대상.
+_SECRET_QS_RE = re.compile(
+    r'(?P<sep>[?&]|\b)(?P<name>crtfc_key|api_key|apikey|token|auth|password|secret|key)=[^&\s"\'<>]+',
+    re.IGNORECASE,
+)
+# DART API key는 40-char hex (기본 포맷). URL query 바깥에서 문자열 단독으로
+# 나타날 수도 있음 — 보수적으로 hex 40자 시퀀스를 마스킹.
+_HEX40_RE = re.compile(r'\b[a-fA-F0-9]{40}\b')
+
+
+def _mask_secrets(text: str | None) -> str:
+    if not text:
+        return text or ""
+    redacted = _SECRET_QS_RE.sub(r'\g<sep>\g<name>=REDACTED', text)
+    redacted = _HEX40_RE.sub("REDACTED_HEX40", redacted)
+    return redacted
 
 router = APIRouter()
 
@@ -90,8 +110,8 @@ def _run_subprocess_sync(argv_tail: list[str], job_id: str) -> dict:
             capture_output=True, text=True, timeout=900, check=False,
         )
         dt = (datetime.now(timezone.utc) - t0).total_seconds()
-        stdout_tail = (proc.stdout or "")[-500:]
-        stderr_tail = (proc.stderr or "")[-500:]
+        stdout_tail = _mask_secrets((proc.stdout or "")[-500:])
+        stderr_tail = _mask_secrets((proc.stderr or "")[-500:])
         logger.info(
             "admin_job %s done rc=%s elapsed=%.1fs stdout_tail=%r stderr_tail=%r",
             job_id, proc.returncode, dt, stdout_tail, stderr_tail,
