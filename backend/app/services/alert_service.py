@@ -2,6 +2,7 @@
 
 트리거는 공시 이상징후(severity)로 교체 예정.
 """
+import asyncio
 import logging
 
 import httpx
@@ -130,10 +131,12 @@ async def check_and_alert(db: AsyncSession) -> dict:
     user_sent = 0
 
     for d in disclosures:
-        # 1) Admin 글로벌 broadcast (Embed 포맷)
-        if admin_webhook:
+        # 1) Admin 글로벌 broadcast — high severity 만 (노이즈 방지).
+        #    Discord webhook rate limit: 30/min — 한 번에 쏟으면 throttled.
+        if admin_webhook and (d.anomaly_severity or "").lower() == "high":
             if await send_discord_embed(admin_webhook, d):
                 admin_sent += 1
+                await asyncio.sleep(0.5)  # 최소 간격
 
         # 2) User-level 구독자 (Severity 임계치 필터)
         for c in configs:
