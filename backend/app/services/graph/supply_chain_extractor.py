@@ -104,15 +104,34 @@ def _html_to_text(html: str, max_chars: int = 6000) -> str:
     return text[:max_chars]
 
 
+_PAREN_AND_SUFFIX = re.compile(r"[\(\)㈜]|\(주\)|주식회사|co\.,?\s*ltd\.?|inc\.?|\.", re.IGNORECASE)
+
+
+def _normalize_name(name: str) -> str:
+    """회사명 → 소문자·공백제거·접미어제거 형태."""
+    if not name:
+        return ""
+    n = _PAREN_AND_SUFFIX.sub("", name)
+    return re.sub(r"\s+", "", n.lower()).strip()
+
+
 def _match_ticker_by_name(name: str, name_to_ticker: dict[str, str]) -> str | None:
     if not name:
         return None
-    norm = re.sub(r"\s+", "", name.lower())
+    # 1. 정확 매칭 (원본 정규화)
+    norm = _normalize_name(name)
     if norm in name_to_ticker:
         return name_to_ticker[norm]
-    stripped = norm.rstrip(")").rstrip("(주").rstrip("㈜").strip()
-    if stripped != norm and stripped in name_to_ticker:
-        return name_to_ticker[stripped]
+    # 2. 부분 매칭: 긴 이름이 DB의 짧은 이름을 포함할 때 (LG전자 in "LG전자(주)")
+    #    또는 DB의 긴 이름이 추출 본문의 짧은 이름을 포함 (확실한 경우만)
+    for db_key, ticker in name_to_ticker.items():
+        # DB 키가 너무 짧으면 오탐 위험 (예: "SK" 가 "SK하이닉스"에 매치)
+        if len(db_key) < 3:
+            continue
+        if db_key == norm or db_key in norm or norm in db_key:
+            # 길이 비율 체크로 오탐 완화
+            if min(len(db_key), len(norm)) / max(len(db_key), len(norm)) > 0.6:
+                return ticker
     return None
 
 
@@ -266,6 +285,9 @@ async def extract_supply_chains(
     skipped = 0
     loop = asyncio.get_event_loop()
 
+    # 디버깅: skip 이유별 카운터
+    skip_reasons: dict[str, int] = {"low_conf": 0, "bad_rel": 0, "no_ticker": 0, "same_co": 0, "bad_shape": 0}
+
     async with graph_session(read_only=False) as s:
         for d in targets:
             # document.xml fetch (blocking requests → thread)
@@ -289,17 +311,27 @@ async def extract_supply_chains(
                     evidence = (r.get("evidence") or "")[:500]
                 except Exception:
                     skipped += 1
+                    skip_reasons["bad_shape"] += 1
                     continue
                 if rel not in UPSERT_CYPHER:
                     skipped += 1
+                    skip_reasons["bad_rel"] += 1
+                    logger.info("skip bad_rel=%s a=%r b=%r", rel, a_name, b_name)
                     continue
                 if conf < min_confidence:
                     skipped += 1
+                    skip_reasons["low_conf"] += 1
                     continue
                 a_t = _match_ticker_by_name(a_name, name_map)
                 b_t = _match_ticker_by_name(b_name, name_map)
-                if not a_t or not b_t or a_t == b_t:
+                if not a_t or not b_t:
                     skipped += 1
+                    skip_reasons["no_ticker"] += 1
+                    logger.info("skip no_ticker a=%r→%s b=%r→%s", a_name, a_t, b_name, b_t)
+                    continue
+                if a_t == b_t:
+                    skipped += 1
+                    skip_reasons["same_co"] += 1
                     continue
 
                 # COMPETES_WITH / PARTNERS 는 ticker 사전식 작은 쪽→큰 쪽 으로 정규화
@@ -327,8 +359,8 @@ async def extract_supply_chains(
 
     total_upserted = sum(upserted_by_type.values())
     logger.info(
-        "extract: processed=%d extracted=%d upserted=%d skipped=%d by_type=%s",
-        len(targets), extracted_total, total_upserted, skipped, upserted_by_type,
+        "extract: processed=%d extracted=%d upserted=%d skipped=%d by_type=%s skip_reasons=%s",
+        len(targets), extracted_total, total_upserted, skipped, upserted_by_type, skip_reasons,
     )
     return {
         "processed": len(targets),
@@ -336,4 +368,5 @@ async def extract_supply_chains(
         "upserted": total_upserted,
         "skipped": skipped,
         "by_type": upserted_by_type,
+        "skip_reasons": skip_reasons,
     }
