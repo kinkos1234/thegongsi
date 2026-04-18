@@ -49,6 +49,9 @@ SEVERITY_COLOR = {
 }
 
 DART_VIEW_URL = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}"
+COMPANY_PAGE_URL = "https://thegongsi.vercel.app/c/{ticker}"
+
+SEVERITY_EMOJI = {"high": "🔴", "med": "🟡", "low": "🔵", "uncertain": "⚪"}
 
 
 async def send_discord(webhook_url: str, message: str) -> bool:
@@ -62,20 +65,34 @@ async def send_discord(webhook_url: str, message: str) -> bool:
             return False
 
 
-async def send_discord_embed(webhook_url: str, disclosure: Disclosure) -> bool:
+async def send_discord_embed(
+    webhook_url: str,
+    disclosure: Disclosure,
+    company_name: str | None = None,
+) -> bool:
     """Discord Embed 포맷으로 이상공시 1건 전송.
 
-    Severity 별 색상 / DART 원문 링크 / 티커·날짜·reason 필드.
-    webhook_url 은 추적에 사용하지 않고 직접 호출.
+    - Severity 이모지 + 종목명 prefix: "🔴 삼성전자(005930) — 유상증자결정"
+    - Title URL: DART 원문
+    - 필드: Severity / 종목 / 접수일 / 회사페이지 링크(The Gongsi)
     """
     sev = (disclosure.anomaly_severity or "uncertain").lower()
+    emoji = SEVERITY_EMOJI.get(sev, "⚪")
+    ticker = disclosure.ticker or "—"
+    report = disclosure.report_nm or "(제목 없음)"
+
+    name_part = f"{company_name}({ticker})" if company_name else ticker
+    title = f"{emoji} {name_part} — {report}"
+    # Discord embed title limit 256자
+    title = title[:250]
+
     embed = {
-        "title": disclosure.report_nm or "(제목 없음)",
+        "title": title,
         "url": DART_VIEW_URL.format(rcept_no=disclosure.rcept_no),
         "color": SEVERITY_COLOR.get(sev, 9807270),
         "fields": [
             {"name": "Severity", "value": sev.upper(), "inline": True},
-            {"name": "Ticker", "value": disclosure.ticker or "—", "inline": True},
+            {"name": "종목", "value": name_part, "inline": True},
             {"name": "접수일", "value": disclosure.rcept_dt or "—", "inline": True},
         ],
         "footer": {"text": "The Gongsi · thegongsi.vercel.app"},
@@ -83,6 +100,13 @@ async def send_discord_embed(webhook_url: str, disclosure: Disclosure) -> bool:
     }
     if disclosure.anomaly_reason:
         embed["description"] = disclosure.anomaly_reason[:1500]
+    # 하단 링크: The Gongsi 종목 페이지 (원문과 별개로 맥락 탐색)
+    if disclosure.ticker:
+        embed.setdefault("fields", []).append({
+            "name": "더공시 종목 페이지",
+            "value": COMPANY_PAGE_URL.format(ticker=disclosure.ticker),
+            "inline": False,
+        })
     payload = {"embeds": [embed]}
     async with httpx.AsyncClient() as client:
         try:
@@ -130,11 +154,23 @@ async def check_and_alert(db: AsyncSession) -> dict:
     admin_sent = 0
     user_sent = 0
 
+    # 종목명 prefetch — Disclosure.ticker → Company.name_ko 매핑
+    name_map: dict[str, str] = {}
+    if admin_webhook:
+        from app.models.market import Company
+        tickers = list({d.ticker for d in disclosures if d.ticker})
+        if tickers:
+            nr = await db.execute(select(Company.ticker, Company.name_ko).where(Company.ticker.in_(tickers)))
+            for t, n in nr.all():
+                if n:
+                    name_map[t] = n
+
     for d in disclosures:
         # 1) Admin 글로벌 broadcast — high severity 만 (노이즈 방지).
         #    Discord webhook rate limit: 30/min — 한 번에 쏟으면 throttled.
         if admin_webhook and (d.anomaly_severity or "").lower() == "high":
-            if await send_discord_embed(admin_webhook, d):
+            cname = name_map.get(d.ticker or "")
+            if await send_discord_embed(admin_webhook, d, company_name=cname):
                 admin_sent += 1
                 await asyncio.sleep(0.5)  # 최소 간격
 
