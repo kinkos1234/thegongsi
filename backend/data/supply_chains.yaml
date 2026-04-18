@@ -577,5 +577,136 @@ chains:
       - { ticker: "000990", name: DB하이텍, role: foundry }
 
   # =====================================================================
+  # 보험 (운영 지원 · 재보험 공급)
+  # =====================================================================
+  - customer: KB손해보험
+    customer_ticker: "000000"    # KB금융 산하, 개별 상장 X — skip 대상
+    category: insurance
+    suppliers: []
+
+  - customer: 현대해상
+    customer_ticker: "001450"
+    category: insurance
+    suppliers:
+      - { ticker: "003690", name: 코리안리, role: service }         # 재보험
+      - { ticker: "053800", name: 안랩, role: service }
+
+  - customer: DB손해보험
+    customer_ticker: "005830"
+    category: insurance
+    suppliers:
+      - { ticker: "003690", name: 코리안리, role: service }
+
+  - customer: 삼성화재
+    customer_ticker: "000810"
+    category: insurance
+    suppliers:
+      - { ticker: "003690", name: 코리안리, role: service }
+
+  - customer: 메리츠화재
+    customer_ticker: "000060"
+    category: insurance
+    suppliers:
+      - { ticker: "003690", name: 코리안리, role: service }
+
+  # =====================================================================
+  # 제지 / 인쇄 (펄프 → 제지사 → 인쇄/포장)
+  # =====================================================================
+  - customer: 한국제지
+    customer_ticker: "027970"
+    category: paper
+    suppliers:
+      - { ticker: "009460", name: 한창제지, role: material }
+
+  - customer: 무림페이퍼
+    customer_ticker: "009200"
+    category: paper
+    suppliers:
+      - { ticker: "017180", name: 명문제약, role: input }
+
+  - customer: 신풍제지
+    customer_ticker: "002870"
+    category: paper
+    suppliers:
+      - { ticker: "027970", name: 한국제지, role: material }
+
+  # =====================================================================
+  # 반도체 소재 심화
+  # =====================================================================
+  - customer: 삼성전자
+    customer_ticker: "005930"
+    category: semiconductor_material
+    suppliers:
+      - { ticker: "074600", name: 원익QnC, role: material }          # 석영 도가니
+      - { ticker: "166090", name: 하나머티리얼즈, role: material }    # 실리콘 파츠
+      - { ticker: "058470", name: 리노공업, role: component }
+      - { ticker: "321370", name: 비에이치아이, role: material }
+      - { ticker: "087600", name: 피에이치에이, role: material }
+
+  - customer: SK하이닉스
+    customer_ticker: "000660"
+    category: semiconductor_material
+    suppliers:
+      - { ticker: "074600", name: 원익QnC, role: material }
+      - { ticker: "166090", name: 하나머티리얼즈, role: material }
+      - { ticker: "058470", name: 리노공업, role: component }
+      - { ticker: "036200", name: 유니셈, role: equipment }
+
+  # =====================================================================
+  # 2차전지 장비 심화
+  # =====================================================================
+  - customer: LG에너지솔루션
+    customer_ticker: "373220"
+    category: battery_equipment_deep
+    suppliers:
+      - { ticker: "259630", name: 엠플러스, role: equipment }         # 조립공정
+      - { ticker: "340970", name: 디이엔티, role: equipment }         # 레이저 notching
+      - { ticker: "192650", name: 피엔티, role: equipment }
+      - { ticker: "403870", name: HPSP, role: equipment }
+
+  - customer: 삼성SDI
+    customer_ticker: "006400"
+    category: battery_equipment_deep
+    suppliers:
+      - { ticker: "259630", name: 엠플러스, role: equipment }
+      - { ticker: "340970", name: 디이엔티, role: equipment }
+
+  - customer: SK이노베이션
+    customer_ticker: "096770"
+    category: battery_equipment_deep
+    suppliers:
+      - { ticker: "259630", name: 엠플러스, role: equipment }
+
+  # =====================================================================
+  # 에너지 / 수소 심화
+  # =====================================================================
+  - customer: 두산퓨얼셀
+    customer_ticker: "336260"
+    category: hydrogen
+    suppliers:
+      - { ticker: "034020", name: 두산에너빌리티, role: component }
+
+  - customer: 효성중공업
+    customer_ticker: "298040"
+    category: hydrogen
+    suppliers:
+      - { ticker: "298050", name: 효성첨단소재, role: material }
+
+  # =====================================================================
+  # 음료·주류
+  # =====================================================================
+  - customer: 하이트진로
+    customer_ticker: "000080"
+    category: beverage
+    suppliers:
+      - { ticker: "005300", name: 롯데칠성, role: input }
+
+  - customer: 롯데칠성
+    customer_ticker: "005300"
+    category: beverage
+    suppliers:
+      - { ticker: "280360", name: 롯데웰푸드, role: input }
+
+  # =====================================================================
   # 타이어 (원료 고무 → 타이어 → 자동차 이미 위에 걸림)
   # =====================================================================
