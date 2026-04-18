@@ -5,6 +5,7 @@ import { BarChart3 } from "lucide-react";
 
 type EarningsRow = {
   ticker: string;
+  name: string | null;
   quarter: string;
   scheduled: string | null;
   reported: string | null;
@@ -64,13 +65,14 @@ export function RecentEarnings({ limit = 5 }: { limit?: number }) {
         {rows.map((r) => (
           <li
             key={`${r.ticker}-${r.quarter}`}
-            className="py-3 grid grid-cols-[80px_1fr_auto] gap-4 items-baseline"
+            className="py-3 grid grid-cols-[160px_1fr_auto] gap-4 items-baseline"
           >
             <a
               href={`/c/${r.ticker}`}
-              className="mono text-[12px] text-fg-2 hover:text-accent"
+              className="text-[13px] hover:text-accent truncate"
             >
-              {r.ticker}
+              <span className="text-fg">{r.name ?? r.ticker}</span>{" "}
+              <span className="mono text-[11px] text-fg-3">({r.ticker})</span>
             </a>
             <div className="text-[13px] text-fg-3 mono">
               매출 <span className="text-fg">{formatKRW(r.revenue)}</span>

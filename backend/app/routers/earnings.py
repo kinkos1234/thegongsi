@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.market import Company
 from app.models.tables import EarningsEvent
 
 router = APIRouter()
@@ -15,7 +16,14 @@ async def list_events(
     upcoming: bool = True,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(EarningsEvent).order_by(EarningsEvent.scheduled_date.asc()).limit(50)
+    # companies LEFT JOIN 으로 종목명(name_ko) 함께 반환 — 프론트에서 티커만 보여주면
+    # 직관성 떨어짐 (Threads 피드백 반영, 2026-04-18).
+    query = (
+        select(EarningsEvent, Company.name_ko)
+        .outerjoin(Company, Company.ticker == EarningsEvent.ticker)
+        .order_by(EarningsEvent.scheduled_date.asc())
+        .limit(50)
+    )
     if ticker:
         query = query.where(EarningsEvent.ticker == ticker)
     if upcoming:
@@ -23,9 +31,11 @@ async def list_events(
         today = date.today().isoformat()
         query = query.where(EarningsEvent.scheduled_date >= today)
     result = await db.execute(query)
+    rows = result.all()
     return [
         {
             "ticker": e.ticker,
+            "name": name,
             "quarter": e.quarter,
             "scheduled": e.scheduled_date,
             "reported": e.reported_date,
@@ -33,5 +43,5 @@ async def list_events(
             "op_profit": e.op_profit,
             "net_profit": e.net_profit,
         }
-        for e in result.scalars().all()
+        for e, name in rows
     ]
