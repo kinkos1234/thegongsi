@@ -37,11 +37,18 @@ TARGET_TITLE_PATTERNS = [
     "유무상증자결정",
 ]
 
-# document.xml HTML 표에서 <td>N. 라벨</td> … <span class="xforms_input">값</span> 추출
-FIELD_RE = re.compile(
-    r'<td[^>]*>\s*<span[^>]*>\s*(\d+)\.\s*([^<]+?)\s*</span>.*?'
+# 유/무상증자 주요사항보고서의 실제 양식: <TD>N. 라벨</TD><TU AUNITVALUE="YYYYMMDD">날짜</TU>
+# (대문자 태그, TU 태그의 AUNITVALUE 속성에 머신 리더블 날짜).
+# 구양식 fallback: <td>...<span>라벨</span></td>...<span class="xforms_input">값</span>
+TD_TU_RE = re.compile(
+    r'<TD[^>]*>\s*(?:\d+\.\s*)?([^<]+?)\s*</TD>\s*'
+    r'<TU(?:[^>]*?AUNITVALUE="(\d{8})")?[^>]*>\s*([^<]*?)\s*</TU>',
+    re.IGNORECASE | re.DOTALL,
+)
+LEGACY_FIELD_RE = re.compile(
+    r'<td[^>]*>\s*<span[^>]*>\s*(?:\d+\.\s*)?([^<]+?)\s*</span>.*?'
     r'<span[^>]*class="xforms_input"[^>]*>\s*([^<]*?)\s*</span>',
-    re.DOTALL,
+    re.IGNORECASE | re.DOTALL,
 )
 DATE_RE = re.compile(r"(\d{4})[-./\s년]+(\d{1,2})[-./\s월]+(\d{1,2})")
 
@@ -132,9 +139,32 @@ async def _fetch_document(client: httpx.AsyncClient, rcept_no: str, api_key: str
 
 
 def _extract_fields(html: str) -> dict[str, str]:
+    """라벨 → ISO 날짜 매핑. 신양식(TD/TU) 우선, 없으면 구양식 legacy fallback.
+
+    신양식의 AUNITVALUE 속성(YYYYMMDD)이 있으면 그걸 쓰고, 없으면 TU 본문의
+    한글 날짜("2026년 04월 30일")를 DATE_RE로 파싱.
+    """
     fields: dict[str, str] = {}
-    for m in FIELD_RE.finditer(html):
-        fields[m.group(2).strip()] = m.group(3).strip()
+    # 신양식 파싱
+    for m in TD_TU_RE.finditer(html):
+        label = m.group(1).strip()
+        aunit = m.group(2)  # YYYYMMDD or None
+        tu_text = m.group(3).strip()
+        if aunit and len(aunit) == 8:
+            iso = f"{aunit[:4]}-{aunit[4:6]}-{aunit[6:8]}"
+        else:
+            iso = _parse_date(tu_text) or tu_text
+        if label and iso:
+            # 여러 번 등장하면 첫 번째 값 유지
+            fields.setdefault(label, iso)
+    if fields:
+        return fields
+    # 구양식 fallback (이전 세션에서 본 span class="xforms_input" 포맷)
+    for m in LEGACY_FIELD_RE.finditer(html):
+        label = m.group(1).strip()
+        val = m.group(2).strip()
+        if label:
+            fields.setdefault(label, val)
     return fields
 
 
