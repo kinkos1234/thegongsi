@@ -41,6 +41,9 @@ on:
           - weekly_market_refresh_seed
           - weekly_market_refresh_enrich
           - weekly_db_backup
+          - seed_supply_chains
+          - extract_supply_chains
+          - graph_ping
 
 jobs:
   trigger:
