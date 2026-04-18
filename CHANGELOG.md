@@ -8,10 +8,40 @@ dates in local 2026 Asia/Seoul.
 
 ## [Unreleased]
 
-### Added
+### Added (2026-04-18 오후 — v0.2.0 태그 이후)
 
+- **공급망 그래프 구축** (seed v1→v5) — 41 categories / 187 SUPPLIES edges.
+  HBM · 2차전지 · 자동차 · 반도체소재 · 방산 · 조선 · 통신 · 건설 · 화장품 ·
+  금융 · 보험 · 해운 · 교육 · 의료기기 · IT 서비스 · 보안 등 국내 주요 산업
+  대부분 커버. `backend/data/supply_chains.yaml` + `scripts/seed_supply_chains.py`.
+- **LLM 공급망 추출기** (`supply_chain_extractor.py`) — DART document.xml 본문
+  fetch → HTML 태그 제거 → Claude Haiku 로 4종 관계(SUPPLIES/OWNS/
+  COMPETES_WITH/PARTNERS) 추출. confidence<0.6 · ticker 매칭 실패는 버림.
+  매주 cron 으로 누적. admin_jobs `extract_supply_chains` 엔드포인트.
+- **Discord Embed 알림** (admin 글로벌 webhook) — severity 이모지(🔴🟡🔵⚪)
+  + 종목명(ticker) + DART 원문 링크 + 더공시 종목 페이지 링크. high severity
+  만 broadcast (rate limit 보호 + 노이즈 방지). `check_and_alert` 가 user-level
+  구독자(telegram/slack/discord BYOK)와 병행 디스패치.
+- **keepalive workflow** — Fly API 10분 주기 + Neo4j graph_ping 6h 주기.
+  무료 티어 idle-hibernate 예방으로 첫 방문자 콜드 스타트 10-60s → 400ms.
 - **RecentEarnings** widget on landing — Q1 2026 잠정실적 Top 5 with 조/억/백만원
   human-readable formatting.
+- **종목명 JOIN** — `/api/earnings/` Company LEFT JOIN 으로 `name_ko` 반환.
+  프론트/Discord Embed 모두 "LG전자(066570)" 형태로 직관화.
+- **`loading.tsx` 3종** — `/c/[ticker]` · `/watchlist` · `/settings` 에 Next.js
+  App Router Suspense 스켈레톤. 2.2s SSR 대기 UX 개선.
+
+### Fixed (2026-04-18 오후)
+
+- **AlertConfig stale 레코드로 인한 DNS 실패** — DB의 `target='https://hook'`
+  1건이 `send_discord` 호출 시 httpx DNS 실패로 전체 alert 파이프라인 crash
+  시키던 문제. `send_*` 함수에 try/except + 10s timeout 추가. 라우터 POST
+  단계에서 Discord/Slack/Telegram target prefix 포맷 검증 추가. 운영 DB
+  에서 stale 1건 삭제.
+- **버전 일관성** — `frontend/package.json` / `backend/app/main.py` FastAPI
+  version / landing 라벨 모두 `0.2.0` 통일 (기존 0.1.0 stale).
+
+### Added
 
 ### Fixed
 
