@@ -130,27 +130,29 @@ async def extract_supply_chains(
     from datetime import date, timedelta
     from sqlalchemy import select
     from app.database import async_session
-    from app.models.tables import Disclosure
+    from app.models.signals import Disclosure
     from app.services.graph.client import session as graph_session
 
     end = date.today()
-    start = end - timedelta(days=days_back)
+    start = (end - timedelta(days=days_back)).isoformat()
+    end_str = end.isoformat()
 
     # 공급 관계 단서 키워드 — 신뢰할 수 있는 signals
     SIGNALS = ["단일판매ㆍ공급계약체결", "단일판매·공급계약체결", "주요고객", "주요 매출처",
                "공급계약", "공급 계약"]
 
     async with async_session() as db:
+        # rcept_dt 는 "YYYY-MM-DD" string. 문자열 lexicographic 비교가 날짜 비교와 일치.
         q = (
             select(Disclosure)
-            .where(Disclosure.filed_at >= start)
-            .where(Disclosure.filed_at <= end)
-            .order_by(Disclosure.filed_at.desc())
+            .where(Disclosure.rcept_dt >= start)
+            .where(Disclosure.rcept_dt <= end_str)
+            .order_by(Disclosure.rcept_dt.desc())
             .limit(max_filings * 3)  # 필터 후 추릴 여유
         )
         candidates = (await db.execute(q)).scalars().all()
 
-    targets = [d for d in candidates if any(sig in (d.title or "") for sig in SIGNALS)][:max_filings]
+    targets = [d for d in candidates if any(sig in (d.report_nm or "") for sig in SIGNALS)][:max_filings]
     logger.info("extract_supply_chains: %d candidates → %d targets", len(candidates), len(targets))
 
     name_map = await _load_company_name_map()
@@ -161,8 +163,8 @@ async def extract_supply_chains(
 
     async with graph_session(read_only=False) as s:
         for d in targets:
-            # 본문이 없거나 너무 짧으면 제목만 사용
-            body = (d.title or "") + "\n\n" + (d.summary or d.raw_text or "")
+            # 본문이 없거나 너무 짧으면 제목만 사용. Disclosure 모델은 report_nm + summary_ko 만 보유.
+            body = (d.report_nm or "") + "\n\n" + (d.summary_ko or "")
             results = await _call_claude(body)
             extracted_total += len(results)
             for r in results:
