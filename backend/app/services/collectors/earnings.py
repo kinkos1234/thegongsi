@@ -49,6 +49,27 @@ XFORMS_RE = re.compile(
     re.DOTALL,
 )
 
+# 공시 본문에 명시된 보고 단위. 예: "단위 : 백만원, %" / "단위 : 조원, %" / "(단위: 억원)".
+# 디오 = 백만원, LG/크래프톤 = 백만원, 삼성 = 조원. 회사마다 다름 → 백만원으로 정규화.
+UNIT_RE = re.compile(r"단위\s*[:：]\s*([가-힣]+)")
+
+# 단위 한글 → 백만원 기준 곱셈 계수
+UNIT_SCALE = {
+    "원": 1 / 1_000_000,
+    "천원": 1 / 1_000,
+    "백만원": 1.0,
+    "억원": 100.0,
+    "조원": 1_000_000.0,
+}
+
+
+def _detect_unit_scale(html: str) -> float:
+    """HTML에서 보고 단위를 찾아 '백만원' 기준 곱셈 계수 반환. 미명시 시 1.0(백만원 가정)."""
+    m = UNIT_RE.search(html or "")
+    if not m:
+        return 1.0
+    return UNIT_SCALE.get(m.group(1), 1.0)
+
 
 def _parse_num(raw: str | None) -> float | None:
     if not raw:
@@ -161,21 +182,35 @@ def _fetch_document_html(rcept_no: str, api_key: str) -> str:
 
 
 def _extract_earnings_numbers(html: str) -> dict[str, float | None]:
-    """HTML에서 라벨(매출액/영업이익/당기순이익) 직후의 첫 xforms_input = 당해실적."""
+    """HTML에서 라벨(매출액/영업이익/당기순이익) 직후의 첫 xforms_input = 당해실적.
+
+    회사마다 보고 단위가 다르므로 (삼성전자 조원, 디오/LG 백만원) HTML 상단의
+    "단위 :" 표기를 감지해 **전부 백만원 단위로 정규화**한 값을 저장한다.
+    """
     aliases = {"영업수익": "매출액", "순이익": "당기순이익"}
     results: dict[str, float | None] = {"매출액": None, "영업이익": None, "당기순이익": None}
+    scale = _detect_unit_scale(html)
     # 라벨을 발견하면, 해당 위치 이후의 첫 xforms_input을 당해실적으로 채택.
     # 같은 라벨이 여러 번 등장할 수 있음(표 중복) — 첫 non-null 값만 보관.
+    # 다만 Samsung 같이 xforms_input이 표 헤더로도 쓰이는 양식(e.g. "(26.1Q)")
+    # 이 있어, '당해실적' 서브헤더 뒤의 xforms만 본다. 그런 서브헤더가 없으면
+    # 기존처럼 첫 xforms를 채택 (대부분의 중소형 공시 호환).
     for lbl_match in LABEL_RE.finditer(html):
         label = lbl_match.group(1)
         canonical = aliases.get(label, label)
         if results.get(canonical) is not None:
             continue
-        # 라벨 바로 뒤 2KB 구간에서 첫 xforms_input 탐색 (보통 같은 <tr> 안)
         tail = html[lbl_match.end(): lbl_match.end() + 2000]
-        val_match = XFORMS_RE.search(tail)
+        # "당해실적" 앵커가 있으면 그 뒤를, 없으면 라벨 뒤부터.
+        anchor = re.search(r"당해\s*실적", tail)
+        search_start = anchor.end() if anchor else 0
+        val_match = XFORMS_RE.search(tail[search_start:])
         if val_match:
-            results[canonical] = _parse_num(val_match.group(1))
+            raw = _parse_num(val_match.group(1))
+            if raw is not None:
+                # 단위 정규화 (백만원 기준). 소수점 있는 작은 값이 조원 단위로
+                # 들어오는 경우 수백만 배 차이 → 정규화가 핵심.
+                results[canonical] = round(raw * scale, 2)
     return {
         "revenue": results["매출액"],
         "op_profit": results["영업이익"],
