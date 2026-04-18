@@ -1,5 +1,6 @@
 import { HomeSearch } from "@/components/HomeSearch";
 import { UpcomingExDates } from "@/components/UpcomingExDates";
+import { RecentEarnings } from "@/components/RecentEarnings";
 
 export default function Home() {
   return (
@@ -29,6 +30,7 @@ export default function Home() {
         </div>
 
         <UpcomingExDates days={7} />
+        <RecentEarnings limit={5} />
       </section>
 
       <section className="border-t border-border/50">
