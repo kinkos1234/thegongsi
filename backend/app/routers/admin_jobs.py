@@ -53,6 +53,7 @@ router = APIRouter()
 
 # job_id → (argv, description). "inline" job은 특별 처리.
 JOBS: dict[str, tuple[list[str] | str, str]] = {
+    "graph_ping": ("inline", "Neo4j 가벼운 Cypher 핑 (AuraDB idle-hibernate 방지)"),
     "daily_collection": ("inline", "DART/KRX 일일 수집 + 알림 체크"),
     "weekly_index_sync": (
         ["scripts/weekly_sync.py"],
@@ -131,6 +132,25 @@ def _run_subprocess_sync(argv_tail: list[str], job_id: str) -> dict:
         return {"rc": -2, "error": f"{type(e).__name__}: {e}"}
 
 
+async def _run_graph_ping() -> dict:
+    """AuraDB Free 는 idle 72h 후 hibernate → 첫 쿼리 30-60s 콜드 스타트.
+    이 job 을 6h 주기로 돌려 hibernate 를 예방."""
+    t0 = datetime.now(timezone.utc)
+    try:
+        from app.services.graph.client import session
+        async with session(read_only=True) as s:
+            r = await s.run("RETURN 1 AS one")
+            record = await r.single()
+            one = record["one"] if record else None
+        dt = (datetime.now(timezone.utc) - t0).total_seconds()
+        logger.info("graph_ping ok elapsed=%.2fs one=%s", dt, one)
+        return {"ok": True, "elapsed_seconds": round(dt, 2), "one": one}
+    except Exception as e:
+        dt = (datetime.now(timezone.utc) - t0).total_seconds()
+        logger.exception("graph_ping failed after %.2fs", dt)
+        return {"ok": False, "elapsed_seconds": round(dt, 2), "error": f"{type(e).__name__}: {e}"}
+
+
 async def _run_daily_collection() -> dict:
     """Inline: scripts/scheduler.py:run_once(check_alerts=True) 와 동일."""
     from app.database import async_session
@@ -197,6 +217,8 @@ async def trigger_job(
 
     if argv == "inline" and job_id == "daily_collection":
         result = await _run_daily_collection()
+    elif argv == "inline" and job_id == "graph_ping":
+        result = await _run_graph_ping()
     else:
         assert isinstance(argv, list)
         result = await asyncio.to_thread(_run_subprocess_sync, argv, job_id)

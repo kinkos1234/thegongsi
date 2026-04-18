@@ -1,0 +1,53 @@
+name: keepalive
+
+# 무료 티어 idle-hibernate 방지:
+# - Fly.io: min_machines_running=0 → 10분 idle 후 VM 정지. 10분 주기로 /api/health
+#   curl 해서 warm 유지. (Fly free: 3 × 256MB machine-hours/월 = 2,232h. 우리 VM 512MB
+#   는 2 슬롯 소모하므로 월 ~1,488h 한계. 10분 주기 keepalive → 월 ~720h 가동, 여유 OK.)
+# - AuraDB Free: 72h idle 후 hibernate. 6h 주기 graph_ping 으로 예방.
+#
+# Actions는 public repo 무제한 무료. 단 스케줄 타이밍은 high-load 시 5-15분 지연될
+# 수 있음 (GitHub 공지) — 그래서 10분 주기로 넉넉히 잡음.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # Fly warm-up (API + 프론트용)
+    - cron: '0 */6 * * *'    # Neo4j graph_ping (AuraDB hibernate 방지)
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'fly | graph | both'
+        required: false
+        default: 'both'
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Warm Fly API
+        if: ${{ github.event.schedule == '*/10 * * * *' || github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -e
+          start=$(date +%s%3N)
+          code=$(curl -sS -o /dev/null -w "%{http_code}" "https://the-gongsi-api.fly.dev/api/health")
+          end=$(date +%s%3N)
+          echo "fly health: HTTP $code, elapsed $((end - start))ms"
+          [ "$code" = "200" ]
+
+      - name: Warm Neo4j (graph_ping)
+        if: ${{ github.event.schedule == '0 */6 * * *' || github.event_name == 'workflow_dispatch' }}
+        env:
+          ADMIN_JOBS_TOKEN: ${{ secrets.ADMIN_JOBS_TOKEN }}
+        run: |
+          set -e
+          if [ -z "${ADMIN_JOBS_TOKEN:-}" ]; then
+            echo "ADMIN_JOBS_TOKEN not set in secrets" >&2; exit 1
+          fi
+          start=$(date +%s%3N)
+          resp=$(curl -sS -o /tmp/resp.json -w "%{http_code}" \
+            -X POST -H "X-Admin-Token: $ADMIN_JOBS_TOKEN" \
+            "https://the-gongsi-api.fly.dev/api/admin/jobs/graph_ping")
+          end=$(date +%s%3N)
+          echo "graph_ping: HTTP $resp, elapsed $((end - start))ms"
+          cat /tmp/resp.json; echo
+          [ "$resp" = "200" ]
