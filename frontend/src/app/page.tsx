@@ -6,7 +6,7 @@ export default function Home() {
   return (
     <>
       <section className="mx-auto max-w-[720px] px-8 pt-32 pb-40">
-        <p className="mono text-fg-3 text-[13px] tracking-wider">THE GONGSI · 더공시 · v0.1 · OSS</p>
+        <p className="mono text-fg-3 text-[13px] tracking-wider">THE GONGSI · 더공시 · v0.2 · OSS</p>
 
         <h1 className="mt-8 font-serif text-[72px] leading-[1.05] tracking-[-0.02em]">
           한국 주식,
