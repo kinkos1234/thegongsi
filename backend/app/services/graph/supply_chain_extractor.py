@@ -1,70 +1,115 @@
-"""공시/뉴스 본문에서 공급·고객 관계를 LLM 으로 추출해 Neo4j SUPPLIES 엣지로 upsert.
+"""공시/뉴스 본문에서 **기업간 관계**를 LLM 으로 추출해 Neo4j 엣지로 upsert.
 
-seed_supply_chains.yaml 은 "널리 알려진" 관계만 hardcode 한다면, 이 추출기는
-DART 공시 본문 (단일판매·공급계약체결 / 사업보고서 고객사 언급 / 지배구조 보고서
-등) 을 스캔해 A-B 공급 관계를 자동 발견한다.
+seed_supply_chains.yaml 은 "널리 알려진" 공급 관계 seed, 이 추출기는 DART 공시
+**본문**(document.xml HTML)에서 4종 관계를 자동 발견한다:
 
-전략:
-  1. 최근 N일 공시 중 공급 관계 단서가 있는 filings 필터 (키워드: "공급계약",
-     "주요고객", "주요 고객사", "매출의 N% 이상" 등)
-  2. 각 filing 본문에서 LLM 에게 "{supplier_company}가 공급하는 고객사 목록" 과
-     "이 회사의 주요 매출처" 를 JSON 으로 추출
-  3. Postgres companies 테이블에서 회사명→ticker 매핑
-  4. 매칭된 pair 만 Neo4j SUPPLIES edge upsert (source='extracted', confidence,
-     evidence_rcept_no)
+- `SUPPLIES`     — A 가 B 에 제품/서비스 공급 (수주·공급계약)
+- `COMPETES_WITH`— A 와 B 는 동일 시장 경쟁 (사업보고서 경쟁 환경 기재)
+- `OWNS`         — A 가 B 의 유의미한 지분 보유 (최대주주 변경·주식취득)
+- `PARTNERS`     — A·B 공동사업 / JV / 전략적 제휴
 
-보수성 원칙:
-  - confidence < 0.6 는 버림
-  - ticker 매칭 실패 회사명은 버림 (사람 이름·지명 오인 방지)
-  - 같은 (sup, cust) 가 seed 에 이미 있으면 source 덮어쓰지 않음
+필수 조건:
+- DART document.xml ZIP fetch → HTML 파싱으로 **본문** 확보 (제목만으로는 관계
+  추출 불가, Disclosure.summary_ko 가 비어있는 경우가 대부분).
+- Postgres companies 테이블에서 회사명→ticker 매핑 후 미매칭은 버림.
+- confidence < 0.6 버림, seed 엣지는 덮어쓰기 안 함.
 """
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import logging
 import os
 import re
+import zipfile
 from typing import Any
+
+import requests
 
 logger = logging.getLogger(__name__)
 
 
-EXTRACT_PROMPT = """너는 한국 상장사 공시·뉴스 본문에서 **공급/고객 관계**만 추출하는 분석가다.
+DART_BASE = "https://opendart.fss.or.kr/api"
 
-다음 본문에서 "A회사가 B회사에 제품/서비스를 공급한다" 관계를 찾아 JSON 배열로만 답하라. 추론·추측은 금지. 본문에 명시적으로 나온 관계만.
+EXTRACT_PROMPT = """너는 한국 상장사 공시 본문에서 **기업간 관계**만 추출하는 분석가다. 추론·추측 금지. 본문에 명시적으로 나온 관계만.
 
-JSON 스키마 (배열, 각 원소):
-{
-  "supplier": "공급사 회사명 (한국어 정식명)",
-  "customer": "고객사 회사명 (한국어 정식명)",
-  "role": "equipment|material|component|service|foundry|ip|unknown",
-  "evidence": "본문에서 발췌한 1-2문장 (200자 이내)",
-  "confidence": 0.0~1.0
-}
+다음 4종 관계를 JSON 배열로 답하라 (빈 배열 가능):
+
+- SUPPLIES      : A 가 B 에 제품/서비스/부품/장비/IP 를 공급 (수주, 단일판매·공급계약, 납품계약 등)
+- COMPETES_WITH : A·B 가 동일 시장에서 경쟁 (사업 보고서의 경쟁 환경 기재)
+- OWNS          : A 가 B 의 유의미한 지분 보유 (최대주주·주요주주 변경, 주식취득결정)
+- PARTNERS      : A·B 공동사업·전략적 제휴·합작법인 (양방향성)
+
+JSON 스키마 (pure JSON 배열, ```json 블록 없이):
+[
+  {
+    "rel": "SUPPLIES|COMPETES_WITH|OWNS|PARTNERS",
+    "a": "회사 A 정식 한국어명",
+    "b": "회사 B 정식 한국어명",
+    "role": "equipment|material|component|service|foundry|ip|unknown",   # SUPPLIES 만
+    "pct": 0.0~100.0,                                                     # OWNS 만 (지분률)
+    "evidence": "본문에서 발췌 1-2문장 (200자 이내)",
+    "confidence": 0.0~1.0
+  }
+]
 
 규칙:
-- 본문에 한 번이라도 명시 안 된 관계는 제외.
-- "계열사/자회사/지분 관계" 는 공급 관계 아님 → 제외.
-- supplier 가 해당 공시의 **주체(신고자)** 와 동일하면 customer 는 본문에 언급된 고객사.
-- 불확실하면 confidence 를 0.5 이하로.
-- 관계가 0건이면 빈 배열 [].
-
-출력은 ```json 블록 없이 pure JSON 배열만.
+- **방향성**: SUPPLIES 는 A→B (A 가 공급, B 가 고객). OWNS 는 A→B (A 가 지분 보유).
+- **COMPETES_WITH/PARTNERS**: 알파벳·ticker 순 우선 (A<B) 으로 정규화해서 중복 방지.
+- 계열사/지주회사·자회사 관계는 제외 (OWNS 는 **외부 지분** 만).
+- 불확실하면 confidence 0.5 이하로.
+- 3건 이상 추출 권장하지 않음 — 본문 핵심만.
 """
 
 
+def _fetch_document_html(rcept_no: str, api_key: str) -> str:
+    """공시 document.xml (zip) → 안쪽 HTML. 실패 시 빈 문자열."""
+    try:
+        r = requests.get(
+            f"{DART_BASE}/document.xml",
+            params={"crtfc_key": api_key, "rcept_no": rcept_no},
+            timeout=20,
+        )
+        r.raise_for_status()
+        data = r.content
+        if not data.startswith(b"PK"):
+            return ""
+        zf = zipfile.ZipFile(io.BytesIO(data))
+        names = zf.namelist()
+        if not names:
+            return ""
+        raw = zf.open(names[0]).read()
+        for enc in ("utf-8", "euc-kr", "cp949"):
+            try:
+                return raw.decode(enc)
+            except UnicodeDecodeError:
+                continue
+        return raw.decode("utf-8", errors="ignore")
+    except Exception as e:
+        logger.warning("document.xml %s fetch 실패: %s", rcept_no, e)
+        return ""
+
+
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+
+
+def _html_to_text(html: str, max_chars: int = 6000) -> str:
+    """HTML 태그 제거 + 공백 정규화. LLM 토큰 절약을 위해 상한."""
+    if not html:
+        return ""
+    text = _TAG_RE.sub(" ", html)
+    text = _WS_RE.sub(" ", text).strip()
+    return text[:max_chars]
+
+
 def _match_ticker_by_name(name: str, name_to_ticker: dict[str, str]) -> str | None:
-    """회사명 정규화 후 정확/부분 매칭. name_to_ticker 는 소문자·공백제거 기준."""
     if not name:
         return None
     norm = re.sub(r"\s+", "", name.lower())
-    # 1. 정확 매칭
     if norm in name_to_ticker:
         return name_to_ticker[norm]
-    # 2. 약어 매칭: "LG에너지솔루션" ⊇ "LG에너지" 가 있을 때, 본문의 "LG에너지솔루션" 과
-    #    DB의 "LG에너지솔루션" 이 정확 매칭되어야 함. 부분 매칭은 오탐 위험 커서 skip.
-    # 3. 접미사 제거 매칭: "한미반도체(주)" → "한미반도체"
     stripped = norm.rstrip(")").rstrip("(주").rstrip("㈜").strip()
     if stripped != norm and stripped in name_to_ticker:
         return name_to_ticker[stripped]
@@ -72,7 +117,6 @@ def _match_ticker_by_name(name: str, name_to_ticker: dict[str, str]) -> str | No
 
 
 async def _load_company_name_map() -> dict[str, str]:
-    """Postgres companies → {normalized_name: ticker}. 동명이인은 첫 ticker만."""
     from app.database import async_session
     from app.models.market import Company
     from sqlalchemy import select
@@ -85,12 +129,10 @@ async def _load_company_name_map() -> dict[str, str]:
                 continue
             key = re.sub(r"\s+", "", name.lower())
             out.setdefault(key, ticker)
-    logger.info("loaded %d company names for matching", len(out))
     return out
 
 
 async def _call_claude(prompt_body: str) -> list[dict[str, Any]]:
-    """Anthropic SDK 로 Claude 호출. ANTHROPIC_API_KEY 필수."""
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         logger.warning("ANTHROPIC_API_KEY missing — extractor skipped")
@@ -104,13 +146,12 @@ async def _call_claude(prompt_body: str) -> list[dict[str, Any]]:
     try:
         resp = await client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=2000,
+            max_tokens=2500,
             system=EXTRACT_PROMPT,
             messages=[{"role": "user", "content": prompt_body[:8000]}],
-            timeout=30,
+            timeout=45,
         )
         text = resp.content[0].text if resp.content else "[]"
-        # JSON 블록만 추출 (모델이 markdown 감쌀 경우 대비)
         m = re.search(r"\[.*\]", text, re.DOTALL)
         if not m:
             return []
@@ -120,104 +161,179 @@ async def _call_claude(prompt_body: str) -> list[dict[str, Any]]:
         return []
 
 
+# 관계 타입별 Cypher upsert 패턴
+UPSERT_CYPHER = {
+    "SUPPLIES": """
+        MERGE (a:Company {ticker: $a_t})
+          ON CREATE SET a.name_ko = $a_n
+          ON MATCH  SET a.name_ko = coalesce(a.name_ko, $a_n)
+        MERGE (b:Company {ticker: $b_t})
+          ON CREATE SET b.name_ko = $b_n
+          ON MATCH  SET b.name_ko = coalesce(b.name_ko, $b_n)
+        MERGE (a)-[r:SUPPLIES]->(b)
+          ON CREATE SET r.role = $role, r.source = 'extracted',
+                        r.confidence = $conf, r.evidence_rcept_no = $rcept,
+                        r.evidence = $evidence, r.created_at = datetime()
+          ON MATCH SET  r.last_seen_at = datetime(),
+                        r.confidence = CASE WHEN r.source = 'seed_supply_chains.yaml'
+                                            THEN r.confidence
+                                            ELSE $conf END
+        """,
+    "OWNS": """
+        MERGE (a:Company {ticker: $a_t})
+          ON CREATE SET a.name_ko = $a_n
+        MERGE (b:Company {ticker: $b_t})
+          ON CREATE SET b.name_ko = $b_n
+        MERGE (a)-[r:OWNS]->(b)
+          ON CREATE SET r.pct = $pct, r.source = 'extracted',
+                        r.confidence = $conf, r.evidence_rcept_no = $rcept,
+                        r.evidence = $evidence, r.created_at = datetime()
+          ON MATCH SET  r.pct = $pct, r.last_seen_at = datetime(),
+                        r.confidence = $conf
+        """,
+    "COMPETES_WITH": """
+        MERGE (a:Company {ticker: $a_t})
+          ON CREATE SET a.name_ko = $a_n
+        MERGE (b:Company {ticker: $b_t})
+          ON CREATE SET b.name_ko = $b_n
+        MERGE (a)-[r:COMPETES_WITH]->(b)
+          ON CREATE SET r.source = 'extracted', r.confidence = $conf,
+                        r.evidence_rcept_no = $rcept, r.evidence = $evidence,
+                        r.created_at = datetime()
+          ON MATCH SET  r.last_seen_at = datetime(), r.confidence = $conf
+        """,
+    "PARTNERS": """
+        MERGE (a:Company {ticker: $a_t})
+          ON CREATE SET a.name_ko = $a_n
+        MERGE (b:Company {ticker: $b_t})
+          ON CREATE SET b.name_ko = $b_n
+        MERGE (a)-[r:PARTNERS]->(b)
+          ON CREATE SET r.source = 'extracted', r.confidence = $conf,
+                        r.evidence_rcept_no = $rcept, r.evidence = $evidence,
+                        r.created_at = datetime()
+          ON MATCH SET  r.last_seen_at = datetime(), r.confidence = $conf
+        """,
+}
+
+
 async def extract_supply_chains(
     days_back: int = 14,
     max_filings: int = 30,
     min_confidence: float = 0.6,
 ) -> dict[str, Any]:
-    """최근 N일 DART 공시 중 공급관계 단서 있는 filings를 대상으로 LLM 추출 →
-    SUPPLIES 엣지 upsert. 반환값: {'processed','extracted','upserted','skipped'}."""
+    """공시 document.xml 본문에서 4종 관계 LLM 추출 → Neo4j upsert."""
     from datetime import date, timedelta
     from sqlalchemy import select
     from app.database import async_session
     from app.models.signals import Disclosure
     from app.services.graph.client import session as graph_session
 
+    dart_key = os.environ.get("DART_API_KEY", "")
+    if not dart_key:
+        return {"error": "DART_API_KEY missing"}
+
     end = date.today()
     start = (end - timedelta(days=days_back)).isoformat()
     end_str = end.isoformat()
 
-    # 공급 관계 단서 키워드 — 신뢰할 수 있는 signals
-    SIGNALS = ["단일판매ㆍ공급계약체결", "단일판매·공급계약체결", "주요고객", "주요 매출처",
-               "공급계약", "공급 계약"]
+    # 관계 단서 있는 공시 키워드
+    SIGNALS = [
+        "단일판매", "공급계약", "공급 계약", "납품계약",
+        "주식취득", "최대주주변경", "최대주주 변경",
+        "합작", "전략적 제휴", "업무협약", "MOU",
+    ]
 
     async with async_session() as db:
-        # rcept_dt 는 "YYYY-MM-DD" string. 문자열 lexicographic 비교가 날짜 비교와 일치.
         q = (
             select(Disclosure)
             .where(Disclosure.rcept_dt >= start)
             .where(Disclosure.rcept_dt <= end_str)
             .order_by(Disclosure.rcept_dt.desc())
-            .limit(max_filings * 3)  # 필터 후 추릴 여유
+            .limit(max_filings * 3)
         )
         candidates = (await db.execute(q)).scalars().all()
 
     targets = [d for d in candidates if any(sig in (d.report_nm or "") for sig in SIGNALS)][:max_filings]
-    logger.info("extract_supply_chains: %d candidates → %d targets", len(candidates), len(targets))
+    logger.info("extract: %d candidates → %d targets", len(candidates), len(targets))
+
+    if not targets:
+        return {"processed": 0, "extracted": 0, "upserted": 0, "skipped": 0, "by_type": {}}
 
     name_map = await _load_company_name_map()
 
-    upserted = 0
+    upserted_by_type: dict[str, int] = {"SUPPLIES": 0, "OWNS": 0, "COMPETES_WITH": 0, "PARTNERS": 0}
     extracted_total = 0
     skipped = 0
+    loop = asyncio.get_event_loop()
 
     async with graph_session(read_only=False) as s:
         for d in targets:
-            # 본문이 없거나 너무 짧으면 제목만 사용. Disclosure 모델은 report_nm + summary_ko 만 보유.
-            body = (d.report_nm or "") + "\n\n" + (d.summary_ko or "")
-            results = await _call_claude(body)
+            # document.xml fetch (blocking requests → thread)
+            html = await loop.run_in_executor(
+                None, _fetch_document_html, d.rcept_no or "", dart_key
+            )
+            body_text = _html_to_text(html)
+            if not body_text or len(body_text) < 200:
+                # 본문이 너무 짧으면 제목만으로는 의미 없음 — skip
+                continue
+            full_context = f"공시 제목: {d.report_nm}\n소유사(ticker): {d.ticker}\n\n본문:\n{body_text}"
+            results = await _call_claude(full_context)
             extracted_total += len(results)
+
             for r in results:
                 try:
-                    sup_name = r.get("supplier", "")
-                    cust_name = r.get("customer", "")
+                    rel = r.get("rel", "").upper()
+                    a_name = r.get("a", "")
+                    b_name = r.get("b", "")
                     conf = float(r.get("confidence", 0))
-                    role = r.get("role", "unknown")
                     evidence = (r.get("evidence") or "")[:500]
                 except Exception:
+                    skipped += 1
+                    continue
+                if rel not in UPSERT_CYPHER:
                     skipped += 1
                     continue
                 if conf < min_confidence:
                     skipped += 1
                     continue
-                sup_t = _match_ticker_by_name(sup_name, name_map)
-                cust_t = _match_ticker_by_name(cust_name, name_map)
-                if not sup_t or not cust_t or sup_t == cust_t:
+                a_t = _match_ticker_by_name(a_name, name_map)
+                b_t = _match_ticker_by_name(b_name, name_map)
+                if not a_t or not b_t or a_t == b_t:
                     skipped += 1
                     continue
-                # seed 에 이미 있는 엣지는 source 보존 (덮어쓰기 금지)
-                await s.run(
-                    """
-                    MERGE (sup:Company {ticker: $sup_t})
-                      ON CREATE SET sup.name_ko = $sup_n
-                    MERGE (cust:Company {ticker: $cust_t})
-                      ON CREATE SET cust.name_ko = $cust_n
-                    MERGE (sup)-[r:SUPPLIES]->(cust)
-                      ON CREATE SET r.role = $role,
-                                    r.source = 'extracted',
-                                    r.confidence = $conf,
-                                    r.evidence_rcept_no = $rcept,
-                                    r.evidence = $evidence,
-                                    r.created_at = datetime()
-                      ON MATCH SET  r.last_seen_at = datetime(),
-                                    r.confidence = CASE WHEN r.source = 'seed_supply_chains.yaml'
-                                                        THEN r.confidence
-                                                        ELSE $conf END
-                    """,
-                    sup_t=sup_t, sup_n=sup_name,
-                    cust_t=cust_t, cust_n=cust_name,
-                    role=role, conf=conf, rcept=d.rcept_no or "",
-                    evidence=evidence,
-                )
-                upserted += 1
 
+                # COMPETES_WITH / PARTNERS 는 ticker 사전식 작은 쪽→큰 쪽 으로 정규화
+                if rel in ("COMPETES_WITH", "PARTNERS") and a_t > b_t:
+                    a_t, b_t = b_t, a_t
+                    a_name, b_name = b_name, a_name
+
+                params = {
+                    "a_t": a_t, "a_n": a_name,
+                    "b_t": b_t, "b_n": b_name,
+                    "conf": conf,
+                    "rcept": d.rcept_no or "",
+                    "evidence": evidence,
+                }
+                if rel == "SUPPLIES":
+                    params["role"] = r.get("role", "unknown")
+                elif rel == "OWNS":
+                    try:
+                        params["pct"] = float(r.get("pct", 0))
+                    except Exception:
+                        params["pct"] = 0.0
+
+                await s.run(UPSERT_CYPHER[rel], **params)
+                upserted_by_type[rel] += 1
+
+    total_upserted = sum(upserted_by_type.values())
     logger.info(
-        "extract_supply_chains: processed=%d extracted=%d upserted=%d skipped=%d",
-        len(targets), extracted_total, upserted, skipped,
+        "extract: processed=%d extracted=%d upserted=%d skipped=%d by_type=%s",
+        len(targets), extracted_total, total_upserted, skipped, upserted_by_type,
     )
     return {
         "processed": len(targets),
         "extracted": extracted_total,
-        "upserted": upserted,
+        "upserted": total_upserted,
         "skipped": skipped,
+        "by_type": upserted_by_type,
     }
