@@ -4,7 +4,7 @@
 *DART-native AI research terminal for Korean equities — open source, Korean-first.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-v0.3.0-blue)](https://github.com/kinkos1234/thegongsi/releases/tag/v0.3.0)
+[![Version](https://img.shields.io/badge/version-v0.3.1-blue)](https://github.com/kinkos1234/thegongsi/releases/tag/v0.3.1)
 [![Stack](https://img.shields.io/badge/stack-FastAPI%20%2B%20Next.js%2016%20%2B%20Neo4j-blue)](#)
 [![Live](https://img.shields.io/badge/live-thegongsi.vercel.app-brightgreen)](https://thegongsi.vercel.app)
 
@@ -30,19 +30,20 @@
 - **GraphRAG 자연어 Q&A** — 공급망·경쟁사·인물 그래프 위 자연어 질의. Cypher 자동 생성.
 - **AI DD 메모** — 종목 → bull/bear/thesis 한국어 메모(공시+뉴스+실적 통합, 버전 히스토리).
 - **공급망 그래프** — 41개 산업 범주 187 SUPPLIES 엣지. LLM extractor 가 매주 DART 공시 본문에서 신규 관계 자동 추출.
-- **지배구조 렌즈** *(v0.3)* — DART 최대주주·임원·법인 지분 추출 → 모기업·자회사 덴드로그램, 순환출자 DFS 감지, 관계 그래프(자체 force-directed physics, d3 의존성 없음).
+- **지배구조 렌즈** *(v0.3.1)* — DART document.xml 본문을 LLM 이 읽어 최대주주·임원·법인 지분 자동 추출(Phase 2). 모기업·자회사 덴드로그램, 순환출자 DFS 감지, 관계 그래프(자체 force-directed physics, d3 없음). canonical name dedup + KOSPI 우선 fuzzy ticker 매칭으로 variant 이름도 통합.
 
-## 실데이터 (v0.3.0 / 2026-04-19)
+## 실데이터 (v0.3.1 / 2026-04-19)
 
 ```
-disclosures:       966+ rows (매일 KST 06:00 증분 수집)
+disclosures:       2,767 rows (since 2025-04-21, 일평균 7.6)
 earnings events:   Q1 2026 21건 (매출/영업익/순익 단위 정규화: 백만원 기준)
-calendar events:   18 upcoming (권리락·배당락·납입일·상장일)
+calendar events:   27 upcoming (권리락·배당락·납입일·상장일, dedup 적용)
 supply chain:      187 SUPPLIES edges / 41 categories / 256 company 노드
 companies:         3,959 (KOSPI 836 + KOSDAQ 1,778 + 기타)
 governance:        major_shareholders · insiders · corporate_ownership 3 tables
                    + HOLDS_SHARES (Company→Company) edges on Neo4j
                    + 순환출자 DFS detection (max depth 5)
+                   + Phase 2 본문 기반 LLM 추출 (9/10 watchlist 커버)
 ```
 
 ## 스택
@@ -139,7 +140,8 @@ thegongsi/
 
 - **v0.1 (2026-04-15):** α 론칭 — DART 수집·이상 공시·DD 메모·Ask·BYOK.
 - **v0.2 (2026-04-18):** cron 실배선 · admin_jobs 동기 응답 · 공급망 그래프 (187 edges / 41 categories · seed+LLM extractor) · 단위 정규화 earnings · loading.tsx · keepalive · Discord Embed alerts.
-- **v0.3 (2026-04-19 현재):** DART 지배구조 entity extraction (최대주주·임원·법인 지분) · 순환출자 DFS 감지 · OwnershipDendrogram (가로 가지 그래프, 텍스트 overlap 해결 rowHeight 52px) · RelatedCompanies 자체 force-directed physics · PulseRibbon 시장 맥박 (N일 high+med 일별 카운트) · CoverageStats 트러스트 시그널 · EditorialMasthead (VOL.YYYY·W주차·KST) · ConventionOnboarding (KR/US 가격 색상 관습, ESC 닫기) · Hahmlet Korean serif + EB Garamond 무료 폰트 스택 · LoginGate 공통 컴포넌트 · Next.js 16 `icon.tsx`/`apple-icon.tsx` (dynamic PNG).
+- **v0.3 (2026-04-19):** DART 지배구조 entity extraction (최대주주·임원·법인 지분) · 순환출자 DFS 감지 · OwnershipDendrogram (가로 가지 그래프) · RelatedCompanies 자체 force-directed physics · PulseRibbon 시장 맥박 · CoverageStats 트러스트 시그널 · EditorialMasthead · ConventionOnboarding (KR/US) · 무료 Hahmlet + EB Garamond 폰트 · LoginGate · Next.js 16 dynamic icon.
+- **v0.3.1 (2026-04-19 현재):** governance Phase 2 (document.xml 본문 fetch → LLM 추출) · canonical name dedup + KOSPI 우선 fuzzy ticker 매칭 · watchlist 자동 governance 파이프라인 · historical_backfill admin job (days 스케일 max_rows 2000~15000) · daily cron 윈도우 1→3일 sliding · calendar (ticker, event_type, event_date) dedup (기재정정 중복 제거) · PulseRibbon sparse UX (오늘 점선 marker, "활동 X/N일" meta) · CI Node.js 24 호환 업그레이드.
 - **v0.4+:** 실적 콜 transcript, Managed hosted, 기관 API.
 
 ## 런칭 체크리스트

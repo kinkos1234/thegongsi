@@ -6,6 +6,73 @@ dates in local 2026 Asia/Seoul.
 
 ---
 
+## [0.3.1] — 2026-04-19 (v0.3.0 태그 이후 당일)
+
+### Added
+
+- **governance Phase 2** — `document.xml` zip fetch → HTML decode (utf-8/euc-kr/
+  cp949) → 태그 제거 + 8,000자 상한 → 공시별 Claude Haiku tool_use 호출.
+  공시 간 중복 병합 (persons: (name,role), corps: ticker 우선 / normalized name)
+  후 confidence ≥0.5 필터 → SQL + Neo4j upsert. Phase 1 skeleton(제목만 LLM)
+  을 본격 본문 기반으로 교체. 10 watchlist tickers 중 9 커버.
+- **watchlist 자동 governance 파이프라인** — `POST /api/watchlist/` 백그라운드
+  체인에 governance 단계 추가 (backfill → calendar → 메모 → governance).
+  `backfill_days=0` 도 `_governance_only_task` 로 기존 DB 공시 기반 단독 실행.
+- **admin job `backfill_watchlist_governance`** — 전체 watchlist distinct ticker
+  일괄 processing. `?days=N` 으로 per-ticker DART 사전 backfill (0-365 clamp)
+  포함 가능. workflow_dispatch 옵션 `backfill_watchlist_governance_180d`.
+- **admin job `historical_backfill`** — 과거 N일 공시 일회성 backfill +
+  anomaly scan (7-90d clamp). daily cron 의 1-day 윈도우로는 영영 채워지지
+  않는 역사적 gap 복구 용도. `historical_backfill_30` / `_90` workflow 옵션.
+- **`fetch_recent_disclosures` max_rows 윈도우 스케일링** — days≤3 → 2,000,
+  ≤30 → 5,000, ≤90 → 15,000. DART list.json 2,000 row 상한 우회 위해 페이지
+  네이션 상한을 윈도우에 비례. 90일 backfill 첫 시도 count=0 이던 이슈 해결.
+- **daily DART cron 윈도우 1일 → 3일 sliding** — 주말/공휴일/Actions 지연 대비
+  소폭 겹치게 수집. rcept_no UNIQUE 로 중복 skip.
+- **canonical name dedup + KOSPI 우선 fuzzy 매칭** —
+  `_normalize_corp_name` (주식회사/㈜/(주)/Co.,Ltd/Inc 제거), corp 테이블 같은
+  이름에 multi ticker 인 경우 KOSPI<KOSDAQ<KONEX<UNKNOWN 순 정렬 후 첫 요소
+  선택. fuzzy 매칭(양방향 substring + 길이비≥0.6, 3자미만 키 스킵)으로 업종
+  단어 variant (삼성생명보험 ↔ 삼성생명) 커버. corp upsert 시 `Company.name_ko`
+  canonical 이름 사용 → 재추출해도 variant 행 생성 안 됨.
+- **`as_of` 당일 replace-all** — fresh accepted_persons/corps 있을 때만
+  당일 행 삭제 후 insert. 빈 추출이 good 데이터 지우지 않도록 가드.
+- **frontend icon.tsx + apple-icon.tsx** — Next.js 16 ImageResponse 기반
+  동적 PNG. 감사에서 발견된 `/favicon.ico`·`/apple-icon.png` 404 해결.
+- **LoginGate 공통 컴포넌트** — settings/watchlist 가드 페이지 상단 여백 과다
+  문제 해소. `min-h-[calc(100vh-200px)] flex items-center` 수직 중앙 카드.
+- **Ask 비로그인 티저** — 리다이렉트 제거. 비로그인에도 질의 입력창 + 5 예시
+  노출, 버튼 라벨 `login & ask →`. 로그인 후 자동 돌아오기.
+
+### Fixed
+
+- **PulseRibbon sparse 데이터 오독** — 오늘 count=0 이어도 `bg-accent` stub
+  (2px 초록 막대) 가 렌더되어 '오늘이 peak' 으로 오독되던 문제. 우선순위
+  재정렬(peak > today&>0 > others) + dashed vertical 마커로 위치만 표시 +
+  상단 meta 에 `max N · 활동 X/N일` 추가 → sparse 여부 수치로 명시.
+  하단 축 label 중앙 `max N` 제거, 오른쪽 오늘 label 에 count 명시.
+- **calendar 중복 이벤트** — `(ticker, event_type, event_date)` 그룹 max(rcept_no)
+  서브쿼리 JOIN 으로 기재정정 공시가 여러 건일 때 최신 1건만 노출. 빌리언스
+  044480 2026-04-20 payment_date 2회 표시 버그 해결.
+- **watchlist add 시 backfill_days=0 경로 governance 누락** — 기존 DB 공시
+  기반 단독 실행하는 `_governance_only_task` 추가로 커버.
+- **CI Node.js 20 deprecation 경고 2건** — actions/checkout@v4→@v5,
+  setup-python@v5→@v6, setup-node@v4→@v5 업그레이드 (2025-09-19 GitHub
+  공지 기반, 2026-06-02 부터 강제 Node 24). typecheck `|| true` tolerant
+  fallback 제거 — lockfile 안정화.
+- **test_alerts discord webhook target prefix 검증 실패** — 'https://hook' 더미
+  가 validator 추가 후 400 반환으로 CI 실패. 실제 webhook URL prefix 사용.
+- **landing 히어로 `v0.2` 라벨 잔존** — v0.3 출시 후에도 `page.tsx` 히어로에
+  `v0.2` 문자열 잔존, `package-lock.json` 루트 버전 0.2.0 미갱신. 모두 동기화.
+
+### Changed
+
+- **cron.yml workflow_dispatch** 가상 옵션 패턴 (`historical_backfill_30` /
+  `historical_backfill_90` / `backfill_watchlist_governance_180d`) → shell
+  case 문에서 `?days=N` 쿼리로 분해해 적절 admin job 트리거.
+- **GOVERNANCE_KEYWORDS 확장** — 사업·반기·분기보고서 추가 (임원·최대주주
+  섹션 표준 포함). 변종 키워드(ㆍ 가운데점 등) 보강.
+
 ## [0.3.0] — 2026-04-19
 
 ### Added — 지배구조 렌즈 + Editorial UI
