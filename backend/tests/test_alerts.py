@@ -19,7 +19,9 @@ async def test_create(client):
     t = await _register(client, "a2@al.com")
     h = {"Authorization": f"Bearer {t}"}
     r = await client.post("/api/alerts/", json={
-        "channel": "discord", "channel_target": "https://hook", "severity_threshold": "high"
+        "channel": "discord",
+        "channel_target": "https://discord.com/api/webhooks/1234567890/abcdef",
+        "severity_threshold": "high",
     }, headers=h)
     assert r.status_code == 200
     assert "id" in r.json()
