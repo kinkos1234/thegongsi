@@ -262,15 +262,29 @@ async def _backfill_ticker_impl(ticker: str, days: int) -> dict:
     }
 
 
-async def fetch_recent_disclosures(days: int = 3) -> dict:
+async def fetch_recent_disclosures(days: int = 3, max_rows: int | None = None) -> dict:
     """최근 N일 전시장 공시 수집 → Disclosure upsert (daily cron용).
 
     기본 3일 슬라이딩 윈도우 — 주말/공휴일 + Actions 지연 대비해 소폭 겹치게 수집.
     rcept_no UNIQUE 제약으로 중복은 skip되어 idempotent.
+
+    max_rows: ROUTINE 필터 통과 row 상한. 기본값은 윈도우 길이에 스케일:
+      - days<=3  → 2,000 (daily cron, DART list.json 2,000 cap에 맞춤)
+      - days<=30 → 5,000
+      - days<=90 → 15,000 (historical_backfill 용, 과거 구간 pagination 충분)
+    명시 지정 시 그대로 사용.
     """
     if not settings.dart_api_key:
         logger.warning("DART_API_KEY not set, skipping collection")
         return {"count": 0, "status": "no_api_key"}
+
+    if max_rows is None:
+        if days <= 3:
+            max_rows = 2000
+        elif days <= 30:
+            max_rows = 5000
+        else:
+            max_rows = 15000
 
     now = datetime.now(KST)
     end_de = now.strftime("%Y%m%d")
@@ -281,7 +295,7 @@ async def fetch_recent_disclosures(days: int = 3) -> dict:
         rows = await loop.run_in_executor(
             None,
             lambda: _fetch_list(
-                bgn_de=bgn_de, end_de=end_de, max_rows=2000, last_reprt_at="Y"
+                bgn_de=bgn_de, end_de=end_de, max_rows=max_rows, last_reprt_at="Y"
             ),
         )
     except Exception as e:
