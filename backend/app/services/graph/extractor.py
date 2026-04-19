@@ -101,6 +101,40 @@ def _html_to_text(html: str, max_chars: int = 8000) -> str:
     return text[:max_chars]
 
 
+# 법인명 정규화 — "삼성생명보험주식회사" ↔ "삼성생명보험" 같은 variant 를 동일 키로.
+# "주식회사" 계열 법인체 suffix 만 제거 (업종 단어 '보험' 자체는 유지해야
+# Company.name_ko "삼성생명보험" 과 매치됨).
+_CORP_ENTITY_SUFFIX_RE = re.compile(
+    r"(주식회사|\(주\)|㈜|co\.?,?\s*ltd\.?|inc\.?)",
+    re.IGNORECASE,
+)
+
+
+def _normalize_corp_name(name: str) -> str:
+    """법인명 dedup 키 — 공백·법인체 접미 제거, lower case."""
+    if not name:
+        return ""
+    n = _CORP_ENTITY_SUFFIX_RE.sub("", name)
+    n = re.sub(r"\s+", "", n)
+    return n.lower().strip()
+
+
+async def _load_company_name_to_ticker() -> dict[str, str]:
+    """Company 테이블 name_ko → ticker 맵. normalize 된 키 기준.
+    corporate_shareholders 에서 LLM 이 corp_ticker 못 채웠을 때 fallback 매칭용.
+    """
+    out: dict[str, str] = {}
+    async with async_session() as db:
+        r = await db.execute(select(Company.ticker, Company.name_ko))
+        for ticker, name in r.all():
+            if not name:
+                continue
+            key = _normalize_corp_name(name)
+            if key and key not in out:
+                out[key] = ticker
+    return out
+
+
 EXTRACT_TOOL = {
     "name": "extract_governance_entities",
     "description": (
@@ -271,19 +305,36 @@ async def extract_from_disclosures(ticker: str, limit: int = 6) -> dict:
                 break
         processed += 1
 
-    # 공시 간 중복 병합 — 같은 사람 / 법인 여러 공시에 등장 시 최고 confidence 유지
+    # ticker 자동 매칭 (LLM 이 corp_ticker 공란으로 둔 법인명을 Company 테이블로 backfill)
+    name_to_ticker = await _load_company_name_to_ticker()
+    for c in raw_corps:
+        if not (c.get("corp_ticker") or "").strip():
+            t = name_to_ticker.get(_normalize_corp_name(c.get("corp_name", "")))
+            if t:
+                c["corp_ticker"] = t
+
+    # 공시 간 중복 병합 — 같은 사람 / 법인 여러 공시·variant 에 등장 시 최고 confidence 유지
     def _dedup_by(keys_fn, items):
         best: dict[tuple, dict] = {}
         for it in items:
             k = keys_fn(it)
-            if not k[0]:
+            if not k or not k[0]:
                 continue
             if k not in best or (it.get("confidence", 0) > best[k].get("confidence", 0)):
                 best[k] = it
         return list(best.values())
 
-    merged_persons = _dedup_by(lambda p: (str(p.get("name", "")).strip(), str(p.get("role", "")).strip()), raw_persons)
-    merged_corps = _dedup_by(lambda c: (str(c.get("corp_name", "")).strip(),), raw_corps)
+    merged_persons = _dedup_by(
+        lambda p: (str(p.get("name", "")).strip(), str(p.get("role", "")).strip()),
+        raw_persons,
+    )
+    # 법인 dedup 키: 우선 corp_ticker (있으면 가장 신뢰), 없으면 정규화된 name
+    def _corp_key(c: dict) -> tuple:
+        t = (c.get("corp_ticker") or "").strip()
+        if t:
+            return ("T", t)
+        return ("N", _normalize_corp_name(c.get("corp_name", "")))
+    merged_corps = _dedup_by(_corp_key, raw_corps)
 
     accepted_persons = [p for p in merged_persons if p.get("confidence", 0) >= 0.5]
     accepted_corps = [c for c in merged_corps if c.get("confidence", 0) >= 0.5]

@@ -47,6 +47,7 @@ on:
           - historical_backfill_30
           - historical_backfill_90
           - backfill_watchlist_governance
+          - backfill_watchlist_governance_180d
 
 jobs:
   trigger:
@@ -92,6 +93,11 @@ jobs:
               historical_backfill_*)
                 days="${job#historical_backfill_}"
                 url="$FLY_API_BASE/api/admin/jobs/historical_backfill?days=$days"
+                ;;
+              backfill_watchlist_governance_*)
+                days="${job#backfill_watchlist_governance_}"
+                days="${days%d}"   # strip optional 'd' suffix
+                url="$FLY_API_BASE/api/admin/jobs/backfill_watchlist_governance?days=$days"
                 ;;
               *)
                 url="$FLY_API_BASE/api/admin/jobs/$job"
