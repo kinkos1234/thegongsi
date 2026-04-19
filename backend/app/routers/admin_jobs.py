@@ -57,6 +57,10 @@ JOBS: dict[str, tuple[list[str] | str, str]] = {
     "seed_supply_chains": (["scripts/seed_supply_chains.py"], "공급망 seed YAML → Neo4j SUPPLIES 엣지 upsert"),
     "extract_supply_chains": ("inline", "최근 공시에서 공급 관계 LLM 추출 → Neo4j SUPPLIES upsert"),
     "daily_collection": ("inline", "DART/KRX 일일 수집 + 알림 체크"),
+    "historical_backfill": (
+        "inline",
+        "과거 N일 DART 공시 일회성 backfill + anomaly scan (gap 채우기, 기본 30일, ?days=7-90)",
+    ),
     "weekly_index_sync": (
         ["scripts/weekly_sync.py"],
         "KOSPI 200 + KOSDAQ 150 구성원 sync + backfill",
@@ -153,6 +157,44 @@ async def _run_graph_ping() -> dict:
         return {"ok": False, "elapsed_seconds": round(dt, 2), "error": f"{type(e).__name__}: {e}"}
 
 
+async def _run_historical_backfill(days: int) -> dict:
+    """과거 N일 공시 일회성 수집. Daily cron의 작은 윈도우로는 영영 채워지지
+    않는 역사적 gap 을 복구. rcept_no UNIQUE 로 중복 skip → idempotent.
+
+    daily_collection 전체를 돌리는 대신 DART fetch + anomaly scan 만 실행.
+    KRX/News 는 과거 데이터 의미 낮아 제외.
+    """
+    from app.services.collectors.dart import fetch_recent_disclosures
+    from app.services.anomaly.detector import scan_new_disclosures
+
+    t0 = datetime.now(timezone.utc)
+    fetch_result: object = None
+    anomaly_result: object = None
+    fetch_err: str | None = None
+    anomaly_err: str | None = None
+    try:
+        fetch_result = await fetch_recent_disclosures(days=days)
+        logger.info("historical_backfill fetch: %s", fetch_result)
+    except Exception as e:
+        fetch_err = f"{type(e).__name__}: {e}"
+        logger.exception("historical_backfill fetch failed")
+    try:
+        anomaly_result = await scan_new_disclosures()
+        logger.info("historical_backfill anomaly: %s", anomaly_result)
+    except Exception as e:
+        anomaly_err = f"{type(e).__name__}: {e}"
+        logger.exception("historical_backfill anomaly failed")
+    dt = (datetime.now(timezone.utc) - t0).total_seconds()
+    return {
+        "elapsed_seconds": round(dt, 1),
+        "days": days,
+        "fetch_result": fetch_result,
+        "fetch_error": fetch_err,
+        "anomaly_result": anomaly_result,
+        "anomaly_error": anomaly_err,
+    }
+
+
 async def _run_daily_collection() -> dict:
     """Inline: scripts/scheduler.py:run_once(check_alerts=True) 와 동일."""
     from app.database import async_session
@@ -198,6 +240,7 @@ async def list_jobs(x_admin_token: str | None = Header(default=None, alias="X-Ad
 @router.post("/{job_id}")
 async def trigger_job(
     job_id: str,
+    days: int | None = None,
     x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
 ):
     """Job을 **동기적으로** 실행하고 완료 후 결과 반환.
@@ -219,6 +262,10 @@ async def trigger_job(
 
     if argv == "inline" and job_id == "daily_collection":
         result = await _run_daily_collection()
+    elif argv == "inline" and job_id == "historical_backfill":
+        # ?days=N 쿼리로 윈도우 지정. 없으면 30일. 7-90 clamp.
+        d = max(7, min(90, days or 30))
+        result = await _run_historical_backfill(d)
     elif argv == "inline" and job_id == "graph_ping":
         result = await _run_graph_ping()
     elif argv == "inline" and job_id == "extract_supply_chains":

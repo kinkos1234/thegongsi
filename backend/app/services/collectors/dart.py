@@ -262,8 +262,12 @@ async def _backfill_ticker_impl(ticker: str, days: int) -> dict:
     }
 
 
-async def fetch_recent_disclosures(days: int = 1) -> dict:
-    """최근 N일 전시장 공시 수집 → Disclosure upsert (daily cron용)."""
+async def fetch_recent_disclosures(days: int = 3) -> dict:
+    """최근 N일 전시장 공시 수집 → Disclosure upsert (daily cron용).
+
+    기본 3일 슬라이딩 윈도우 — 주말/공휴일 + Actions 지연 대비해 소폭 겹치게 수집.
+    rcept_no UNIQUE 제약으로 중복은 skip되어 idempotent.
+    """
     if not settings.dart_api_key:
         logger.warning("DART_API_KEY not set, skipping collection")
         return {"count": 0, "status": "no_api_key"}

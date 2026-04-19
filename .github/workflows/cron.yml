@@ -44,6 +44,8 @@ on:
           - seed_supply_chains
           - extract_supply_chains
           - graph_ping
+          - historical_backfill_30
+          - historical_backfill_90
 
 jobs:
   trigger:
@@ -84,12 +86,22 @@ jobs:
           fi
           IFS=','
           for job in $JOBS; do
-            echo "→ triggering $job"
+            # historical_backfill_N 가상 job → base + ?days=N 쿼리로 분해
+            case "$job" in
+              historical_backfill_*)
+                days="${job#historical_backfill_}"
+                url="$FLY_API_BASE/api/admin/jobs/historical_backfill?days=$days"
+                ;;
+              *)
+                url="$FLY_API_BASE/api/admin/jobs/$job"
+                ;;
+            esac
+            echo "→ triggering $job ($url)"
             resp=$(curl -sS -o /tmp/resp.json -w "%{http_code}" \
               -X POST \
               -H "X-Admin-Token: $ADMIN_JOBS_TOKEN" \
               -H "Content-Type: application/json" \
-              "$FLY_API_BASE/api/admin/jobs/$job")
+              "$url")
             cat /tmp/resp.json; echo
             if [ "$resp" != "200" ] && [ "$resp" != "202" ]; then
               echo "trigger failed: HTTP $resp" >&2
