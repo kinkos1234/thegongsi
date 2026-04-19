@@ -383,8 +383,32 @@ async def extract_from_disclosures(ticker: str, limit: int = 6) -> dict:
                 },
             )
 
-    # SQL 스냅샷 적립 — idempotent upsert
+    # SQL 스냅샷 적립 — 당일 as_of 로 기존 행을 먼저 비운 뒤 fresh insert.
+    # 이전 extraction 이 variant 이름(예: "삼성생명보험주식회사" vs "삼성생명")으로
+    # 두 행을 남겼을 때 stale 행이 프론트에 중복 표시되던 문제 방지.
+    # 최신 데이터가 확보된 경우에만 삭제 — 빈 추출로 기존 good 데이터 지우지 않음.
+    from sqlalchemy import delete as sa_delete
     async with async_session() as db:
+        if accepted_persons or accepted_corps:
+            await db.execute(
+                sa_delete(MajorShareholder).where(
+                    MajorShareholder.ticker == ticker,
+                    MajorShareholder.as_of == as_of,
+                )
+            )
+            await db.execute(
+                sa_delete(Insider).where(
+                    Insider.ticker == ticker,
+                    Insider.as_of == as_of,
+                )
+            )
+            await db.execute(
+                sa_delete(CorporateOwnership).where(
+                    CorporateOwnership.child_ticker == ticker,
+                    CorporateOwnership.as_of == as_of,
+                )
+            )
+
         for p in accepted_persons:
             rel = p.get("relation", "UNKNOWN")
             if rel == "HOLDS":
@@ -406,12 +430,32 @@ async def extract_from_disclosures(ticker: str, limit: int = 6) -> dict:
                     is_registered=p.get("is_registered"),
                     as_of=as_of,
                 )
+        # corp → canonical name 으로 upsert 해서 dedup 보장.
+        # holder_ticker 있으면 Company.name_ko 가 canonical, 없으면 LLM 이름.
+        name_by_ticker = {
+            c.ticker: c.name_ko
+            for c in (
+                await db.execute(
+                    select(Company).where(
+                        Company.ticker.in_(
+                            [
+                                (c.get("corp_ticker") or "").strip()
+                                for c in accepted_corps
+                                if (c.get("corp_ticker") or "").strip()
+                            ]
+                        )
+                    )
+                )
+            ).scalars().all()
+        }
         for c in accepted_corps:
             corp_ticker = (c.get("corp_ticker") or "").strip() or None
+            canonical = name_by_ticker.get(corp_ticker) if corp_ticker else None
+            display_name = canonical or c["corp_name"]
             await _upsert_shareholder(
                 db,
                 ticker=ticker,
-                holder_name=c["corp_name"],
+                holder_name=display_name,
                 holder_type="corp",
                 stake_pct=c.get("stake_pct"),
                 holder_ticker=corp_ticker,
@@ -422,7 +466,7 @@ async def extract_from_disclosures(ticker: str, limit: int = 6) -> dict:
                     db,
                     parent_ticker=corp_ticker,
                     child_ticker=ticker,
-                    parent_name=c["corp_name"],
+                    parent_name=display_name,
                     child_name=company.name_ko,
                     stake_pct=c.get("stake_pct"),
                     as_of=as_of,
