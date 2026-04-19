@@ -119,20 +119,62 @@ def _normalize_corp_name(name: str) -> str:
     return n.lower().strip()
 
 
-async def _load_company_name_to_ticker() -> dict[str, str]:
-    """Company 테이블 name_ko → ticker 맵. normalize 된 키 기준.
-    corporate_shareholders 에서 LLM 이 corp_ticker 못 채웠을 때 fallback 매칭용.
+# 시장 우선순위 — 같은 이름에 여러 ticker 매칭 시 메인 상장을 고름
+_MARKET_PRIORITY = {"KOSPI": 0, "KOSDAQ": 1, "KONEX": 2, "UNKNOWN": 3, None: 4}
+
+
+async def _load_company_name_to_ticker() -> dict[str, list[tuple[str, str]]]:
+    """Company 테이블 name_ko → 후보 [(ticker, normalized_name), ...] 맵.
+
+    같은 정규화 이름을 가진 회사가 여러 ticker 로 등록된 경우(예: 000830
+    '삼성물산' UNKNOWN + 028260 '삼성물산' KOSPI) 시장 우선순위 (KOSPI→
+    KOSDAQ→KONEX→UNKNOWN) 로 정렬해 첫 요소가 메인 상장이 되도록 보장.
     """
-    out: dict[str, str] = {}
+    buckets: dict[str, list[tuple[str, str, str | None]]] = {}
     async with async_session() as db:
-        r = await db.execute(select(Company.ticker, Company.name_ko))
-        for ticker, name in r.all():
+        r = await db.execute(select(Company.ticker, Company.name_ko, Company.market))
+        for ticker, name, market in r.all():
             if not name:
                 continue
             key = _normalize_corp_name(name)
-            if key and key not in out:
-                out[key] = ticker
+            if not key:
+                continue
+            buckets.setdefault(key, []).append((ticker, key, market))
+
+    # 시장 우선순위 + ticker 숫자 정렬 (KOSPI 메인이 앞으로)
+    out: dict[str, list[tuple[str, str]]] = {}
+    for key, rows in buckets.items():
+        rows.sort(key=lambda x: (_MARKET_PRIORITY.get(x[2], 9), x[0]))
+        out[key] = [(t, k) for (t, k, _m) in rows]
     return out
+
+
+def _match_corp_ticker(name: str, name_map: dict[str, list[tuple[str, str]]]) -> str | None:
+    """법인명 → ticker 매칭. 1) 정확 매칭 → 2) 부분 매칭 (길이비≥0.6).
+
+    부분 매칭은 '삼성생명보험' ↔ '삼성생명' 같은 업종 단어 variant 커버.
+    오탐 방지로 양방향 substring + 길이 비율 가드.
+    """
+    if not name:
+        return None
+    norm = _normalize_corp_name(name)
+    if not norm:
+        return None
+
+    # 1. 정확 매칭 — 첫 후보가 시장 우선순위 최상위
+    if norm in name_map:
+        return name_map[norm][0][0]
+
+    # 2. 부분 매칭 (한쪽이 다른 쪽을 포함 + 길이 비율 0.6 이상)
+    best: tuple[str, float] | None = None
+    for key, candidates in name_map.items():
+        if len(key) < 3:
+            continue  # 너무 짧은 토큰은 오탐 위험 ('sk', 'lg' 등)
+        if key in norm or norm in key:
+            ratio = min(len(key), len(norm)) / max(len(key), len(norm))
+            if ratio >= 0.6 and (best is None or ratio > best[1]):
+                best = (candidates[0][0], ratio)
+    return best[0] if best else None
 
 
 EXTRACT_TOOL = {
@@ -306,10 +348,11 @@ async def extract_from_disclosures(ticker: str, limit: int = 6) -> dict:
         processed += 1
 
     # ticker 자동 매칭 (LLM 이 corp_ticker 공란으로 둔 법인명을 Company 테이블로 backfill)
+    # 시장 우선순위 (KOSPI 메인) + fuzzy 매칭 (variant 이름 커버).
     name_to_ticker = await _load_company_name_to_ticker()
     for c in raw_corps:
         if not (c.get("corp_ticker") or "").strip():
-            t = name_to_ticker.get(_normalize_corp_name(c.get("corp_name", "")))
+            t = _match_corp_ticker(c.get("corp_name", ""), name_to_ticker)
             if t:
                 c["corp_ticker"] = t
 
