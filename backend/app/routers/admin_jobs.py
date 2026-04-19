@@ -61,6 +61,10 @@ JOBS: dict[str, tuple[list[str] | str, str]] = {
         "inline",
         "과거 N일 DART 공시 일회성 backfill + anomaly scan (gap 채우기, 기본 30일, ?days=7-90)",
     ),
+    "backfill_watchlist_governance": (
+        "inline",
+        "전체 watchlist 종목 governance 스냅샷 일괄 추출 (기존 누락 backfill)",
+    ),
     "weekly_index_sync": (
         ["scripts/weekly_sync.py"],
         "KOSPI 200 + KOSDAQ 150 구성원 sync + backfill",
@@ -155,6 +159,60 @@ async def _run_graph_ping() -> dict:
         dt = (datetime.now(timezone.utc) - t0).total_seconds()
         logger.exception("graph_ping failed after %.2fs", dt)
         return {"ok": False, "elapsed_seconds": round(dt, 2), "error": f"{type(e).__name__}: {e}"}
+
+
+async def _run_backfill_watchlist_governance() -> dict:
+    """전체 watchlist 의 distinct ticker 에 대해 governance extractor 를 돌려
+    major_shareholders / insiders / corporate_ownership 테이블을 채우고
+    Neo4j HOLDS / HOLDS_SHARES 엣지를 생성한다.
+
+    - 사용자 간 중복 ticker 는 단 한 번만 처리 (Anthropic 요청 절감).
+    - ticker 간 0.5s 간격으로 rate-limit 보호.
+    """
+    import asyncio as _asyncio
+
+    from sqlalchemy import select as _select
+
+    from app.database import async_session
+    from app.models.tables import WatchListItem
+    from app.services.graph.extractor import extract_from_disclosures
+
+    t0 = datetime.now(timezone.utc)
+    async with async_session() as db:
+        res = await db.execute(_select(WatchListItem.ticker).distinct())
+        tickers = sorted({t for (t,) in res.all() if t})
+
+    results: list[dict] = []
+    ok = 0
+    empty = 0
+    errors = 0
+    for t in tickers:
+        try:
+            r = await extract_from_disclosures(t)
+        except Exception as e:
+            r = {"status": "error", "ticker": t, "error": f"{type(e).__name__}: {e}"}
+            errors += 1
+            logger.warning("watchlist_governance %s failed: %s", t, e)
+        else:
+            status = r.get("status")
+            if status == "ok":
+                ok += 1
+            elif status == "no_governance_disclosures":
+                empty += 1
+            else:
+                errors += 1
+        results.append({"ticker": t, **{k: v for k, v in r.items() if k != "ticker"}})
+        await _asyncio.sleep(0.5)
+
+    dt = (datetime.now(timezone.utc) - t0).total_seconds()
+    return {
+        "elapsed_seconds": round(dt, 1),
+        "total_tickers": len(tickers),
+        "ok": ok,
+        "empty": empty,
+        "errors": errors,
+        "per_ticker": results,
+    }
 
 
 async def _run_historical_backfill(days: int) -> dict:
@@ -266,6 +324,8 @@ async def trigger_job(
         # ?days=N 쿼리로 윈도우 지정. 없으면 30일. 7-90 clamp.
         d = max(7, min(90, days or 30))
         result = await _run_historical_backfill(d)
+    elif argv == "inline" and job_id == "backfill_watchlist_governance":
+        result = await _run_backfill_watchlist_governance()
     elif argv == "inline" and job_id == "graph_ping":
         result = await _run_graph_ping()
     elif argv == "inline" and job_id == "extract_supply_chains":

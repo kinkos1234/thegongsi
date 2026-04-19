@@ -13,6 +13,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+async def _governance_only_task(ticker: str):
+    """backfill_days=0 경로 — 기존 DB 공시에서 governance 만 추출."""
+    try:
+        from app.services.graph.extractor import extract_from_disclosures
+        result = await extract_from_disclosures(ticker)
+        logger.info(f"watchlist governance-only {ticker}: {result.get('status')}")
+    except Exception as e:
+        logger.warning(f"watchlist governance-only {ticker} failed: {e}")
+
+
 async def _backfill_task(ticker: str, days: int, user_id: str | None = None):
     """watchlist 추가 시 백그라운드 실행 — backfill → calendar 스캔 → DD 메모.
 
@@ -68,6 +78,15 @@ async def _backfill_task(ticker: str, days: int, user_id: str | None = None):
     except Exception as e:
         logger.warning(f"watchlist auto-memo {ticker} skipped: {e}")
 
+    # (3) governance 스냅샷 추출 — 최대주주·임원·법인지분. DART 본문에서 LLM 으로.
+    # 별도 try/except — Anthropic 한도 / 공시 부족 시 조용히 패스.
+    try:
+        from app.services.graph.extractor import extract_from_disclosures
+        gov_result = await extract_from_disclosures(ticker)
+        logger.info(f"watchlist governance {ticker}: {gov_result.get('status')}")
+    except Exception as e:
+        logger.warning(f"watchlist governance {ticker} skipped: {e}")
+
 
 class AddRequest(BaseModel):
     ticker: str
@@ -110,11 +129,14 @@ async def add_watchlist(
     db.add(item)
     await db.commit()
 
-    # 백그라운드: 최근 N일 공시 백필 + anomaly scan + DD 메모 자동 생성
-    backfill_status = "skipped"
+    # 백그라운드: 최근 N일 공시 백필 + calendar + DD 메모 + governance 추출.
+    # backfill_days=0 인 경우에도 governance 만큼은 단독 실행 (기존 DB 공시 기반).
     if req.backfill_days > 0:
         background.add_task(_backfill_task, req.ticker, req.backfill_days, user.id)
         backfill_status = f"queued_{req.backfill_days}d"
+    else:
+        background.add_task(_governance_only_task, req.ticker)
+        backfill_status = "governance_only"
 
     return {"ticker": req.ticker, "status": "added", "backfill": backfill_status}
 

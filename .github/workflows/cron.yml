@@ -46,6 +46,7 @@ on:
           - graph_ping
           - historical_backfill_30
           - historical_backfill_90
+          - backfill_watchlist_governance
 
 jobs:
   trigger:
