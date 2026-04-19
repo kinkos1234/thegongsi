@@ -5,6 +5,9 @@ import { DDMemoCard } from "@/components/DDMemoCard";
 import { GenerateMemoButton } from "@/components/GenerateMemoButton";
 import { Sparkline } from "@/components/Sparkline";
 import { TodayAnomalies } from "@/components/TodayAnomalies";
+import { RelatedCompanies } from "@/components/RelatedCompanies";
+import { ShortSellingRibbon } from "@/components/ShortSellingRibbon";
+import { GovernanceBlock } from "@/components/GovernanceBlock";
 import type { Company, Disclosure, DDMemo, Quote } from "@/types";
 
 async function fetchData(ticker: string): Promise<{
@@ -78,6 +81,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ ticker
     <main className="mx-auto max-w-[1080px] px-8 py-16">
       <CompanyHeader c={company} />
       <TodayAnomalies ticker={ticker} />
+      <ShortSellingRibbon ticker={ticker} />
 
       {data.quote?.series && data.quote.series.length > 0 && (
         <section className="mt-10">
@@ -105,6 +109,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ ticker
           <NoMemoCard ticker={ticker} />
         )}
       </section>
+
+      <GovernanceBlock ticker={ticker} />
+
+      <RelatedCompanies ticker={ticker} />
 
       {/* 공시 — 메모 아래 전체 너비 */}
       <section className="mt-16">

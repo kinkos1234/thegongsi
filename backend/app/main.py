@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db
-from app.routers import auth, calendar, companies, disclosures, memos, watchlist, alerts, qa, byok, quotes, earnings, feedback, graph, admin_jobs
+from app.routers import auth, calendar, companies, disclosures, memos, watchlist, alerts, qa, byok, quotes, earnings, feedback, graph, admin_jobs, stats
 
 
 @asynccontextmanager
@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="The Gongsi API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="The Gongsi API", version="0.3.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,6 +57,7 @@ app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
 app.include_router(graph.router, prefix="/api/graph", tags=["graph"])
 app.include_router(calendar.router, prefix="/api/calendar", tags=["calendar"])
 app.include_router(admin_jobs.router, prefix="/api/admin/jobs", tags=["admin-jobs"])
+app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
 
 
 @app.get("/api/health")

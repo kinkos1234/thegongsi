@@ -25,19 +25,28 @@ export function Sparkline({ data, up }: { data: Point[]; up: boolean }) {
   }
 
   // CSS var는 Recharts SVG attribute에 바로 안 먹을 수 있어 실 computed 값 resolution.
-  // theme 토글 시 data-theme 변경 감지해 rerender.
-  const [theme, setTheme] = useState(0);
+  // theme / convention 토글 시 attribute 변경 감지해 rerender.
+  const [themeTick, setThemeTick] = useState(0);
   useEffect(() => {
-    const obs = new MutationObserver(() => setTheme((t) => t + 1));
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    const obs = new MutationObserver(() => setThemeTick((t) => t + 1));
+    obs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme", "data-convention"],
+    });
     return () => obs.disconnect();
   }, []);
   const rootStyle =
     typeof window !== "undefined" ? getComputedStyle(document.documentElement) : null;
+  const convention =
+    typeof window !== "undefined"
+      ? document.documentElement.getAttribute("data-convention") || "us"
+      : "us";
   const accentColor = rootStyle?.getPropertyValue("--color-accent").trim() || "#4ADE80";
   const downColor = rootStyle?.getPropertyValue("--color-down").trim() || "#A3A3A3";
-  const color = up ? accentColor : downColor;
-  void theme; // force re-read on theme change
+  const sevHigh = rootStyle?.getPropertyValue("--color-sev-high").trim() || "#F87171";
+  const krDown = "#60A5FA"; // blue-400, matches globals.css .price-down KR override
+  const color = convention === "kr" ? (up ? sevHigh : krDown) : up ? accentColor : downColor;
+  void themeTick; // force re-read on attribute change
   return (
     <div className="h-[160px] w-full">
       <ResponsiveContainer width="100%" height="100%">

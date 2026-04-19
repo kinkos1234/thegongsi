@@ -46,10 +46,20 @@ function LoginForm() {
   }
 
   return (
-    <main className="mx-auto max-w-[420px] px-8 py-32">
-      <h1 className="font-serif text-[32px] leading-none">{mode === "login" ? "로그인" : "가입"}</h1>
+    <main className="mx-auto max-w-[420px] px-6 sm:px-8 py-20 sm:py-28">
+      <p className="mono text-[11px] text-fg-3 uppercase tracking-[0.18em]">
+        The Gongsi · 더공시
+      </p>
+      <h1 className="mt-3 font-serif text-[32px] leading-none tracking-[-0.01em]">
+        {mode === "login" ? "로그인" : "가입"}
+      </h1>
+      <p className="mt-3 text-[13px] text-fg-2 leading-[1.65]">
+        {mode === "login"
+          ? "자연어 질의, 워치리스트, DD 메모 생성에 로그인이 필요합니다."
+          : "이메일·비밀번호만으로 가입. 추적·광고·3rd-party 분석 없음."}
+      </p>
 
-      <form onSubmit={submit} className="mt-10 space-y-4">
+      <form onSubmit={submit} className="mt-8 sm:mt-10 space-y-4">
         {mode === "register" && (
           <input
             value={name}
@@ -104,6 +114,21 @@ function LoginForm() {
       >
         {mode === "login" ? "계정이 없으신가요? 가입 →" : "이미 계정이 있나요? 로그인 →"}
       </button>
+
+      <dl className="mt-12 border-t border-border/50 pt-6 space-y-3">
+        {[
+          ["DART 전수 수집", "공시 · 요약 · 심각도 플래그"],
+          ["GraphRAG", "공급망 · 경쟁사 · 인사이더 연결"],
+          ["BYOK", "본인 API 키로 AI 실행"],
+        ].map(([k, v]) => (
+          <div key={k} className="flex items-baseline gap-4 text-[12px]">
+            <dt className="mono text-fg-3 uppercase tracking-[0.15em] w-[110px] shrink-0">
+              {k}
+            </dt>
+            <dd className="text-fg-2">{v}</dd>
+          </div>
+        ))}
+      </dl>
     </main>
   );
 }

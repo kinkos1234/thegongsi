@@ -13,6 +13,14 @@ type Answer = {
 
 const TOKEN_KEY = "comad_stock_token";
 
+const FALLBACK_QUERIES = [
+  "HBM 공급망에서 최근 이상 공시가 있는 회사?",
+  "최근 1주일 감사의견 변경·한정 공시",
+  "SK하이닉스의 주요 공급처와 최근 공시",
+  "최대주주 변경이 있었던 코스닥 종목",
+  "삼성전자 관련된 자회사·계열사 중 배당 공시",
+];
+
 export default function AskPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -20,19 +28,32 @@ export default function AskPage() {
   const [loading, setLoading] = useState(false);
   const [ans, setAns] = useState<Answer | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>(FALLBACK_QUERIES);
 
   useEffect(() => {
     const t = typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null;
-    if (!t) {
-      router.replace("/login?next=/ask");
-      return;
-    }
     setToken(t);
-  }, [router]);
+  }, []);
+
+  useEffect(() => {
+    const api = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888";
+    const ctl = new AbortController();
+    fetch(`${api}/api/stats/ask-suggestions`, { signal: ctl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { suggestions?: string[] } | null) => {
+        if (d?.suggestions?.length) setSuggestions(d.suggestions);
+      })
+      .catch(() => {});
+    return () => ctl.abort();
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!q.trim() || !token || loading) return;  // 중복 submit 방어
+    if (!q.trim() || loading) return;  // 중복 submit 방어
+    if (!token) {
+      router.replace("/login?next=/ask");
+      return;
+    }
     setLoading(true);
     setErr(null);
     try {
@@ -66,21 +87,28 @@ export default function AskPage() {
     }
   }
 
-  if (!token) {
-    return <main className="mx-auto max-w-[820px] px-8 py-20 text-fg-3">로그인 확인 중…</main>;
-  }
+  const authed = !!token;
 
   return (
-    <main className="mx-auto max-w-[820px] px-8 py-20">
-      <p className="mono text-[12px] text-fg-3 uppercase tracking-wider">ASK</p>
-      <h1 className="mt-3 font-serif text-[40px] leading-[1.1] tracking-[-0.01em]">
+    <main className="mx-auto max-w-[820px] px-6 sm:px-8 py-16 sm:py-20">
+      <p className="mono text-[11px] sm:text-[12px] text-fg-3 uppercase tracking-[0.18em]">ASK</p>
+      <h1
+        className="mt-3 font-serif leading-[1.1] tracking-[-0.01em]"
+        style={{ fontSize: "clamp(28px, 5.5vw, 40px)" }}
+      >
         자연어 질의
       </h1>
-      <p className="mt-4 text-[15px] text-fg-2">
+      <p className="mt-4 text-[14px] sm:text-[15px] text-fg-2">
         기업 관계 그래프와 DART 공시에서 답을 찾습니다.
       </p>
 
-      <form onSubmit={submit} className="mt-12">
+      {!authed && (
+        <p className="mt-4 text-[12px] text-fg-3 mono">
+          질의 실행에는 로그인 필요 — 아래 예시 클릭 시 질문이 입력창에 들어갑니다.
+        </p>
+      )}
+
+      <form onSubmit={submit} className="mt-10 sm:mt-12">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -97,9 +125,35 @@ export default function AskPage() {
           disabled={loading}
           className="mt-3 mono text-[13px] text-accent border-b border-accent disabled:opacity-40"
         >
-          {loading ? "실행 중…" : "ask →"}
+          {loading ? "실행 중…" : authed ? "ask →" : "login & ask →"}
         </button>
       </form>
+
+      {!ans && !loading && !err && (
+        <section className="mt-12 border-t border-border/50 pt-8">
+          <p className="mono text-[11px] text-fg-3 uppercase tracking-[0.18em] mb-4">
+            오늘 의미 있는 질의
+          </p>
+          <ul className="space-y-2">
+            {suggestions.map((s) => (
+              <li key={s}>
+                <button
+                  type="button"
+                  onClick={() => setQ(s)}
+                  className="w-full text-left text-[14px] text-fg-2 hover:text-accent transition-colors py-1.5 border-b border-border/30 hover:border-accent/60"
+                >
+                  <span className="mono text-fg-3 text-[11px] mr-3">→</span>
+                  {s}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="mono text-[11px] text-fg-3 mt-6 leading-[1.6]">
+            그래프는 공급망·경쟁사·인사이더를 이어 붙이고, DART 공시는 제목·요약·심각도를 검색합니다.
+            답변은 Cypher + SQL 하이브리드로 생성됩니다.
+          </p>
+        </section>
+      )}
 
       {loading && (
         <div className="mt-12 space-y-3">

@@ -15,8 +15,8 @@
   --color-sev-high: #F87171;
   --color-sev-med: #FBBF24;
 
-  --font-sans: "Pretendard", system-ui, -apple-system, sans-serif;
-  --font-serif: "EB Garamond", "Adelle Sans", Georgia, serif;
+  --font-sans: "Pretendard Variable", "Pretendard", system-ui, -apple-system, sans-serif;
+  --font-serif: "EB Garamond", "Hahmlet", "Gowun Batang", "Nanum Myeongjo", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
@@ -73,4 +73,19 @@ hr { border-color: var(--color-border); }
 .num, code, .mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/* 가격 등락 색상 — 컨벤션에 따라 토글.
+   기본(US): 상승=accent(초록), 하락=down(회색).
+   KR: 상승=sev-high(빨강 계열), 하락=accent(초록 → 파란끼로 상쇄 불가하므로 현재 accent 유지).
+   투자 UI 관습이 국가별로 다르므로 설정에서 명시적으로 고를 수 있게 한다. */
+.price-up { color: var(--color-accent); }
+.price-down { color: var(--color-down); }
+html[data-convention="kr"] .price-up { color: var(--color-sev-high); }
+html[data-convention="kr"] .price-down { color: #60A5FA; } /* blue-400 */
+
+/* 포커스 링 일관화 */
+:where(a, button, input, textarea, select):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { EmptyState } from "@/components/Skeleton";
+import { LoginGate } from "@/components/LoginGate";
 
 type Item = { ticker: string; name: string | null; market: string | null; added_at: string };
 
@@ -121,12 +122,11 @@ export default function WatchlistPage() {
 
   if (!token) {
     return (
-      <main className="mx-auto max-w-[720px] px-8 py-20">
-        <h1 className="font-serif text-[32px]">로그인이 필요합니다.</h1>
-        <Link href="/login" className="mt-6 inline-block mono text-accent border-b border-accent">
-          login →
-        </Link>
-      </main>
+      <LoginGate
+        title="관심 종목은 로그인이 필요합니다."
+        hint="종목코드를 등록하면 공시 백필·DD 메모가 자동 생성되고, 로그인한 세션에서 이어볼 수 있어요."
+        next="/watchlist"
+      />
     );
   }
 

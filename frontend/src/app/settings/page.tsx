@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ConventionToggle } from "@/components/ConventionToggle";
+import { LoginGate } from "@/components/LoginGate";
 
 const TOKEN_KEY = "comad_stock_token";
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888";
@@ -97,12 +98,11 @@ export default function SettingsPage() {
 
   if (!token) {
     return (
-      <main className="mx-auto max-w-[720px] px-8 py-20">
-        <h1 className="font-serif text-[32px]">로그인이 필요합니다.</h1>
-        <Link href="/login?next=/settings" className="mt-6 inline-block mono text-accent border-b border-accent">
-          login →
-        </Link>
-      </main>
+      <LoginGate
+        title="설정 페이지는 로그인이 필요합니다."
+        hint="본인 API 키(BYOK) 등록, 가격 색상 관습, 이상 공시 알림 채널을 이 페이지에서 관리합니다."
+        next="/settings"
+      />
     );
   }
 
@@ -229,6 +229,17 @@ export default function SettingsPage() {
         {msg && <p className="text-[13px] text-accent">{msg}</p>}
         {err && <p className="text-[13px] text-sev-high">⚠ {err}</p>}
       </form>
+
+      <section className="mt-20 border-t border-border/50 pt-10">
+        <p className="mono text-[12px] text-fg-3 uppercase tracking-wider">DISPLAY</p>
+        <h2 className="mt-2 font-serif text-[28px] leading-[1.15]">표시 설정</h2>
+        <p className="mt-3 text-[13px] text-fg-2 leading-[1.7]">
+          한국 증권 UI는 상승이 빨강·하락이 파랑. 미국식은 반대. 본인 관습을 선택하세요. 가격·스파크라인에 적용됩니다.
+        </p>
+        <div className="mt-6">
+          <ConventionToggle />
+        </div>
+      </section>
 
       <AlertsSection token={token} />
     </main>

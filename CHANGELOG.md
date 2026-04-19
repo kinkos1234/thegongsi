@@ -6,6 +6,59 @@ dates in local 2026 Asia/Seoul.
 
 ---
 
+## [0.3.0] — 2026-04-19
+
+### Added — 지배구조 렌즈 + Editorial UI
+
+- **지배구조 파이프라인** — 3 tables (`major_shareholders` · `insiders` ·
+  `corporate_ownership`) + Neo4j `HOLDS_SHARES` Company→Company edge.
+  `extractor.py` tool schema에 `corporate_shareholders[]` · `classification` ·
+  `is_registered` 필드 추가. dialect-neutral upsert (`pg_insert` / `sqlite_insert`
+  + `on_conflict_do_update`) — idempotent re-extraction.
+- **순환출자 DFS 감지** — `governance_query.detect_circular_ownership_sql`,
+  max_depth 5. 삼성전자 005930 → 006400 → 028260 → 032830 → 005930 데모 seed
+  (`scripts/seed_governance.py`).
+- **OwnershipDendrogram** — 가로 parent·self·child 가지 SVG. 5라운드 감사에서
+  텍스트 overlap 지적 받고 rowHeight 28→52px · viewBox 640→680 · center box
+  100×28→112×32로 수정. 모바일 뷰포트는 수직 화살표 리스트로 대체.
+- **GovernanceBlock** — `buildNarrative(d)`가 오너 직접%·법인 간접%·기관%·
+  cycles 수 집계 후 한 줄 요약. 순환출자 감지 시 sev-high 좌측 보더 블록.
+- **RelatedCompanies** — 자체 force-directed physics (spring + Coulomb +
+  damping, 3s auto-stop, requestAnimationFrame). SVG arrow marker 로 parent→
+  center 방향 표시. 릴레이션 pill([모기업]/[자회사]/[섹터]). d3 의존성 없음.
+- **PulseRibbon** — `/api/stats/pulse?days=N` 최근 N일 high+med 일별 카운트.
+  80px 리본, 점선 평균선, accent today marker, sev-high peak marker, 3-point
+  축 라벨(시작일·max·오늘).
+- **CoverageStats** — `/api/stats/coverage` 총 공시·커버 기업·7d 이상 공시·since·
+  daily_avg. 랜딩 트러스트 시그널.
+- **EditorialMasthead** — `VOL.YYYY · Wxx · KST timestamp · 7d 이상 N건 ·
+  dart-native · editorial`. ISO week 계산, 1분 주기 tick.
+- **ConventionOnboarding** — 첫 방문 시 KR(빨강 상승)/US(초록 상승) 가격 색상
+  관습 선택 배너. ESC로 닫힘, `data-convention` 속성 저장, `useCallback` +
+  `useRef` 포커스 복구.
+- **LoginGate 공통 컴포넌트** — settings/watchlist 가드 페이지 상단 여백
+  문제(전체 감사에서 발견) 해결. `min-h-[calc(100vh-200px)] flex items-center`
+  수직 중앙 배치 + accent 좌측 보더 카드.
+- **Ask 비로그인 티저** — 기존 `/login` 즉시 redirect 제거. 비로그인 상태도
+  질의 입력창 + 5개 예시 렌더, 버튼 라벨 `login & ask →`로 변경.
+- **`icon.tsx` + `apple-icon.tsx`** — Next.js 16 `ImageResponse`로 동적 생성.
+  32×32 (accent G) · 180×180 (G + GONGSI). favicon.ico 404 issue 해결.
+- **무료 한국어 에디토리얼 폰트 스택** — Pretendard Variable (CDN) · Hahmlet
+  (Korean editorial serif, OFL) · Gowun Batang (fallback) · EB Garamond ·
+  JetBrains Mono. 유료 폰트(Paperlogy/산돌) 전면 제거.
+- **`/api/stats/ask-suggestions`** — 최근 high+med 공시의 섹터·키워드로 동적
+  질의 제안 3-5개 + fallback.
+- **Convention CSS 오버라이드** — `html[data-convention="kr"]` 에서 `.price-up`
+  이 sev-high(red) 적용, 하락이 blue(#60A5FA). 가격·Sparkline 일관 적용.
+
+### Fixed
+
+- **`rcept_dt` 날짜 포맷 일치** — stats 엔드포인트가 `strftime("%Y%m%d")`로
+  cutoff 계산했는데 DB는 `YYYY-MM-DD` 저장이라 PulseRibbon + anomalies_7d가
+  0 반환. `.date().isoformat()` 기반으로 수정.
+- **OwnershipDendrogram 텍스트 overlap** — 5라운드 감사에서 "지분관계그래프
+  텍스트 겹친다" 제보 받고 rowHeight 2배 + path curve 조정으로 해결.
+
 ## [Unreleased]
 
 ### Added (2026-04-18 오후 — v0.2.0 태그 이후)

@@ -19,6 +19,10 @@ INDEXES = [
     "CREATE INDEX disclosure_severity IF NOT EXISTS FOR (d:Disclosure) ON (d.severity)",
     "CREATE INDEX timepoint_year IF NOT EXISTS FOR (t:TimePoint) ON (t.year)",
     "CREATE INDEX timepoint_quarter IF NOT EXISTS FOR (t:TimePoint) ON (t.quarter)",
+    # 지분·순환출자 질의 최적화
+    "CREATE INDEX person_name_ko IF NOT EXISTS FOR (p:Person) ON (p.name_ko)",
+    # HOLDS_SHARES는 Company→Company 지분 관계. 재벌 순환출자·모자회사 경로 탐색용.
+    "CREATE INDEX holds_shares_as_of IF NOT EXISTS FOR ()-[r:HOLDS_SHARES]-() ON (r.as_of)",
 ]
 
 
