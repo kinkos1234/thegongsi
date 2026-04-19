@@ -13,7 +13,7 @@ export default function Home() {
         <div className="flex items-center gap-3">
           <BrandMark size={14} />
           <p className="mono text-fg-3 text-[12px] sm:text-[13px] tracking-[0.18em]">
-            THE GONGSI · 더공시 · v0.2 · OSS
+            THE GONGSI · 더공시 · v0.3 · OSS
           </p>
         </div>
 
