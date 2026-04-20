@@ -25,6 +25,29 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("seed-market")
 
 
+def _fetch_index_tickers(index_code: str) -> list[str]:
+    """실제 인덱스 구성원 조회. 1028=KOSPI 200, 2203=KOSDAQ 150.
+
+    pykrx `get_index_portfolio_deposit_file`이 KRX OTP 실패 시 시총 상위로 fallback.
+    """
+    from pykrx import stock
+    from datetime import datetime, timedelta
+    for i in range(1, 8):
+        d = (datetime.now() - timedelta(days=i)).strftime("%Y%m%d")
+        try:
+            tickers = stock.get_index_portfolio_deposit_file(index_code, d)
+            if tickers:
+                return list(tickers)
+        except Exception:
+            continue
+    logger.warning(f"pykrx 인덱스 {index_code} 조회 실패 — 시총 상위/DART로 fallback")
+    if index_code == "1028":
+        return _fetch_top_by_market_cap("KOSPI", 200) or _fetch_from_dart_corp_list("Y", 300)
+    if index_code == "2203":
+        return _fetch_top_by_market_cap("KOSDAQ", 150) or _fetch_from_dart_corp_list("K", 300)
+    return []
+
+
 def _fetch_top_by_market_cap(market: str, top: int) -> list[str]:
     """KOSPI/KOSDAQ 시총 상위 N 종목. pykrx 실패 시 DART corp_list로 fallback.
 

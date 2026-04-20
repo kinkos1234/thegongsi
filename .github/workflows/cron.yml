@@ -114,6 +114,13 @@ jobs:
               echo "trigger failed: HTTP $resp" >&2
               exit 1
             fi
+            # Fly 엔드포인트는 job 내부 실패 시에도 HTTP 200을 돌려준다.
+            # payload의 result.rc가 0이 아니면 작업이 실패한 것으로 간주.
+            rc=$(jq -r '.result.rc // empty' /tmp/resp.json)
+            if [ -n "$rc" ] && [ "$rc" != "0" ]; then
+              echo "job '$job' failed: rc=$rc (payload stderr_tail 참고)" >&2
+              exit 1
+            fi
             # weekly_market_refresh의 seed → enrich 사이에 짧게 쉼 (seed가 enrich보다 먼저 끝나도록)
             sleep 5
           done
