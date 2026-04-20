@@ -26,26 +26,33 @@ function severityLabel(s: Row["severity"]): string {
 
 function deriveTone(rows: Row[] | null) {
   if (!rows || rows.length === 0) {
-    return { label: "오늘의 공시", border: "border-border/60", text: "text-fg-3" };
+    return { label: "최근 공시", border: "border-border/60", text: "text-fg-3" };
   }
+  // 모든 행이 오늘자면 "오늘의", 아니면 "최근" — DART 주말·공휴일 공백 + 수집
+  // 지연을 정직하게 표현 (2026-04-20에 4-17자 공시만 떠도 "오늘의"라고 속이지 않음).
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const dateOf = (r: Row) => (r.date || r.rcept_dt || "").slice(0, 10);
+  const allToday = rows.every((r) => dateOf(r) === todayIso);
+  const prefix = allToday ? "오늘의" : "최근";
+
   const hasHigh = rows.some((r) => r.severity === "high");
   const hasMed = rows.some((r) => r.severity === "med");
   if (hasHigh) {
     return {
-      label: "오늘의 이상 공시 · HIGH",
+      label: `${prefix} 이상 공시 · HIGH`,
       border: "border-sev-high/30",
       text: "text-sev-high",
     };
   }
   if (hasMed) {
     return {
-      label: "오늘의 주요 공시 · MED",
+      label: `${prefix} 주요 공시 · MED`,
       border: "border-sev-med/30",
       text: "text-sev-med",
     };
   }
   return {
-    label: "오늘의 최신 공시",
+    label: `${prefix} 최신 공시`,
     border: "border-border/60",
     text: "text-fg-3",
   };
