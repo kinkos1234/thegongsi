@@ -65,6 +65,10 @@ JOBS: dict[str, tuple[list[str] | str, str]] = {
         "inline",
         "DART day-by-day 역순 순회로 2026 gap 채움 (기본 150/호출, start=2026-01-01, ?max_new=N&start=YYYY-MM-DD&cursor=YYYY-MM-DD)",
     ),
+    "scan_anomalies_bulk": (
+        "inline",
+        "severity=NULL 공시 일괄 스캔 (rule + LLM). 빈 배치 나올 때까지 반복, 최대 50회.",
+    ),
     "backfill_watchlist_governance": (
         "inline",
         "전체 watchlist 종목 governance 스냅샷 일괄 추출 (기존 누락 backfill)",
@@ -230,6 +234,39 @@ async def _run_backfill_watchlist_governance(backfill_days: int = 0) -> dict:
         "empty": empty,
         "errors": errors,
         "per_ticker": results,
+    }
+
+
+async def _run_scan_anomalies_bulk(max_iterations: int = 50) -> dict:
+    """severity 미판정(NULL) 공시를 일괄 스캔. `scan_new_disclosures()`를
+    빈 배치가 나올 때까지 반복 호출 — 각 배치 limit 1000, 총 max_iterations 회 상한.
+
+    Why: backfill_year_gaps 로 대량 공시가 들어오면 anomaly_severity=NULL
+    상태로 쌓여 프론트 severity 필터에 잡히지 않음. 이 잡으로 일괄 처리.
+    """
+    from app.services.anomaly.detector import scan_new_disclosures
+
+    t0 = datetime.now(timezone.utc)
+    total_scanned = 0
+    total_flagged = 0
+    iterations = 0
+    for _ in range(max_iterations):
+        res = await scan_new_disclosures()
+        iterations += 1
+        s = res.get("scanned", 0)
+        f = res.get("flagged", 0)
+        total_scanned += s
+        total_flagged += f
+        if s == 0:
+            break
+
+    elapsed = (datetime.now(timezone.utc) - t0).total_seconds()
+    return {
+        "iterations": iterations,
+        "scanned": total_scanned,
+        "flagged": total_flagged,
+        "stopped_at_cap": iterations >= max_iterations and s > 0,
+        "elapsed_seconds": round(elapsed, 1),
     }
 
 
@@ -430,6 +467,8 @@ async def trigger_job(
         # ?days=N 쿼리로 윈도우 지정. 없으면 30일. 7-90 clamp.
         d = max(7, min(90, days or 30))
         result = await _run_historical_backfill(d)
+    elif argv == "inline" and job_id == "scan_anomalies_bulk":
+        result = await _run_scan_anomalies_bulk()
     elif argv == "inline" and job_id == "backfill_year_gaps":
         # ?start=YYYY-MM-DD (default 2026-01-01), ?max_new=N (default 150, 0=무제한),
         # ?cursor=YYYY-MM-DD (optional resume point).
