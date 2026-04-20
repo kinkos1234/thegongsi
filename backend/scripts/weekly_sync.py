@@ -42,6 +42,15 @@ async def weekly_sync(auto_backfill: bool = False):
         existing_tickers = {
             r[0] for r in (await db.execute(select(Company.ticker))).all()
         }
+        # pykrx/KRX 전면 실패 (target 비어있음) → DB의 기존 market 라벨을 target으로 재사용.
+        # 이 경우 new/missing 모두 0이 되어 seed 호출도 skip, 재앙 확산 방지.
+        if not target:
+            logger.warning("pykrx target=0 — DB companies.market 기준으로 fallback (diff 없음 처리)")
+            rows = await db.execute(
+                select(Company.ticker).where(Company.market.in_(["KOSPI", "KOSDAQ"]))
+            )
+            target = {r[0] for r in rows.all() if r[0]}
+            logger.info(f"DB fallback target: {len(target)}")
 
     new_tickers = target - existing_tickers
     missing_tickers = existing_tickers - target  # 편출 후보

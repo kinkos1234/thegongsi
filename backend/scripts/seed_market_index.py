@@ -28,7 +28,9 @@ logger = logging.getLogger("seed-market")
 def _fetch_index_tickers(index_code: str) -> list[str]:
     """실제 인덱스 구성원 조회. 1028=KOSPI 200, 2203=KOSDAQ 150.
 
-    pykrx `get_index_portfolio_deposit_file`이 KRX OTP 실패 시 시총 상위로 fallback.
+    pykrx `get_index_portfolio_deposit_file`가 KRX OTP 실패 시 시총 상위로 fallback.
+    둘 다 실패하면 [] 반환. DART corpCode XML fallback은 512MB Fly VM에서 OOM
+    위험이라 의도적으로 제외 (weekly_sync는 target=0이면 seed 호출 skip).
     """
     from pykrx import stock
     from datetime import datetime, timedelta
@@ -40,11 +42,11 @@ def _fetch_index_tickers(index_code: str) -> list[str]:
                 return list(tickers)
         except Exception:
             continue
-    logger.warning(f"pykrx 인덱스 {index_code} 조회 실패 — 시총 상위/DART로 fallback")
+    logger.warning(f"pykrx 인덱스 {index_code} 조회 실패 — 시총 상위로 fallback")
     if index_code == "1028":
-        return _fetch_top_by_market_cap("KOSPI", 200) or _fetch_from_dart_corp_list("Y", 300)
+        return _fetch_top_by_market_cap("KOSPI", 200)
     if index_code == "2203":
-        return _fetch_top_by_market_cap("KOSDAQ", 150) or _fetch_from_dart_corp_list("K", 300)
+        return _fetch_top_by_market_cap("KOSDAQ", 150)
     return []
 
 
