@@ -69,6 +69,10 @@ JOBS: dict[str, tuple[list[str] | str, str]] = {
         "inline",
         "severity=NULL 공시 일괄 스캔 (rule + LLM). 빈 배치 나올 때까지 반복, 최대 50회.",
     ),
+    "sync_disclosures_all": (
+        "inline",
+        "DB 전체 Disclosure → Neo4j sync (페이지네이션, MERGE 멱등)",
+    ),
     "backfill_watchlist_governance": (
         "inline",
         "전체 watchlist 종목 governance 스냅샷 일괄 추출 (기존 누락 backfill)",
@@ -469,6 +473,9 @@ async def trigger_job(
         result = await _run_historical_backfill(d)
     elif argv == "inline" and job_id == "scan_anomalies_bulk":
         result = await _run_scan_anomalies_bulk()
+    elif argv == "inline" and job_id == "sync_disclosures_all":
+        from app.services.graph.sync import sync_all_disclosures
+        result = await sync_all_disclosures()
     elif argv == "inline" and job_id == "backfill_year_gaps":
         # ?start=YYYY-MM-DD (default 2026-01-01), ?max_new=N (default 150, 0=무제한),
         # ?cursor=YYYY-MM-DD (optional resume point).
@@ -490,6 +497,13 @@ async def trigger_job(
         result = await extract_supply_chains(days_back=90, max_filings=100)
     else:
         assert isinstance(argv, list)
+        # `scan_earnings` / `scan_dividend_dates` / `scan_ex_dates_v2` 등 `--days N`
+        # 인자를 쓰는 subprocess 잡은 query ?days=N 로 override 가능 — 120일 급
+        # 일회성 backfill에 필요. 하드코딩된 기본값은 일상 cron용으로 유지.
+        if days is not None and "--days" in argv:
+            argv = list(argv)
+            idx = argv.index("--days")
+            argv[idx + 1] = str(max(1, min(365, days)))
         result = await asyncio.to_thread(_run_subprocess_sync, argv, job_id)
 
     return {

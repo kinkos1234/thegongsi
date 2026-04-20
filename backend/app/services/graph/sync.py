@@ -50,14 +50,24 @@ async def sync_company(db: AsyncSession, ticker: str) -> bool:
     return True
 
 
-async def sync_disclosures(tickers: Iterable[str] | None = None, limit: int = 500) -> dict:
+async def sync_disclosures(
+    tickers: Iterable[str] | None = None,
+    limit: int = 500,
+    offset: int = 0,
+) -> dict:
     """Disclosure 테이블을 Neo4j로 sync.
 
     tickers=None이면 전체, 지정 시 필터.
     limit: 대량 배치 시 상한 (기본 500).
+    offset: 페이지네이션용 (기본 0) — `sync_disclosures_all`에서 루프 시 사용.
     """
     async with async_session() as db:
-        query = select(Disclosure).order_by(Disclosure.rcept_dt.desc()).limit(limit)
+        query = (
+            select(Disclosure)
+            .order_by(Disclosure.rcept_dt.desc(), Disclosure.rcept_no.desc())
+            .offset(offset)
+            .limit(limit)
+        )
         if tickers:
             tlist = list(tickers)
             query = query.where(Disclosure.ticker.in_(tlist))
@@ -141,4 +151,29 @@ async def sync_disclosures(tickers: Iterable[str] | None = None, limit: int = 50
         "companies": company_synced,
         "disclosures": disclosure_synced,
         "tickers_filter": list(tickers) if tickers else None,
+        "rows_fetched": len(rows),
+    }
+
+
+async def sync_all_disclosures(page_size: int = 500, max_pages: int = 200) -> dict:
+    """DB 전체 Disclosure를 Neo4j로 일괄 sync — offset 기반 페이지네이션.
+
+    MERGE 기반이라 멱등. 중단 후 재실행 안전.
+    """
+    total_companies = 0
+    total_disclosures = 0
+    pages = 0
+    for i in range(max_pages):
+        res = await sync_disclosures(limit=page_size, offset=i * page_size)
+        rows = res.get("rows_fetched", 0)
+        if rows == 0:
+            break
+        total_companies += res.get("companies", 0)
+        total_disclosures += res.get("disclosures", 0)
+        pages += 1
+    return {
+        "pages": pages,
+        "companies_total": total_companies,
+        "disclosures_total": total_disclosures,
+        "completed": pages < max_pages,
     }
