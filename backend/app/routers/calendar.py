@@ -72,7 +72,7 @@ async def upcoming_events(
         .outerjoin(Company, Company.ticker == CalendarEvent.ticker)
         .where(and_(*conds))
         .order_by(CalendarEvent.event_date.asc(), CalendarEvent.ticker.asc())
-        .limit(200)
+        .limit(500)
     )
     result = await db.execute(q)
     return [
