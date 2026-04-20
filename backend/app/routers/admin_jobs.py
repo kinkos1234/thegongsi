@@ -61,6 +61,10 @@ JOBS: dict[str, tuple[list[str] | str, str]] = {
         "inline",
         "과거 N일 DART 공시 일회성 backfill + anomaly scan (gap 채우기, 기본 30일, ?days=7-90)",
     ),
+    "backfill_year_gaps": (
+        "inline",
+        "DART day-by-day 역순 순회로 2026 gap 채움 (기본 150/호출, start=2026-01-01, ?max_new=N&start=YYYY-MM-DD&cursor=YYYY-MM-DD)",
+    ),
     "backfill_watchlist_governance": (
         "inline",
         "전체 watchlist 종목 governance 스냅샷 일괄 추출 (기존 누락 backfill)",
@@ -229,6 +233,91 @@ async def _run_backfill_watchlist_governance(backfill_days: int = 0) -> dict:
     }
 
 
+async def _run_backfill_year_gaps(
+    start: str = "2026-01-01",
+    max_new: int = 150,
+    cursor: str | None = None,
+) -> dict:
+    """DART list.json을 day-by-day 역순 순회하며 DB 누락분만 주입.
+
+    Why: 3개월 bulk fetch는 max_rows(15K)에 묶이고 Fly 512MB에서 OOM 위험.
+    날짜별 1회 호출 + 페이지별 증분 commit → 메모리 상수, 멱등 (rcept_no UNIQUE).
+
+    cursor가 있으면 해당 날짜부터 재개, 없으면 KST 오늘부터. max_new 도달 또는
+    `start` 이전으로 내려가면 종료 (done=True 시 다음 호출 불필요).
+    """
+    from app.services.collectors.dart import KST, _fetch_list
+    from app.database import async_session
+    from app.models.signals import Disclosure
+    from sqlalchemy import select
+    from datetime import date as _date, datetime as _dt, timedelta as _td
+
+    def _parse_iso(s: str) -> _date:
+        return _dt.strptime(s, "%Y-%m-%d").date()
+
+    stop_date = _parse_iso(start)
+    today_kst = _dt.now(KST).date()
+    cursor_date = _parse_iso(cursor) if cursor else today_kst
+
+    t0 = datetime.now(timezone.utc)
+    inserted = 0
+    skipped_dup = 0
+    skipped_noticker = 0
+    days_walked = 0
+
+    day = cursor_date
+    loop = asyncio.get_event_loop()
+    while day >= stop_date and (max_new <= 0 or inserted < max_new):
+        ymd = day.strftime("%Y%m%d")
+        try:
+            rows = await loop.run_in_executor(
+                None,
+                lambda d=ymd: _fetch_list(
+                    bgn_de=d, end_de=d, max_rows=1000, last_reprt_at="Y"
+                ),
+            )
+        except Exception as e:
+            logger.warning("backfill_year_gaps fetch %s failed: %s", ymd, e)
+            rows = []
+
+        async with async_session() as db:
+            for row in rows:
+                if not row["ticker"]:
+                    skipped_noticker += 1
+                    continue
+                existing = await db.execute(
+                    select(Disclosure).where(Disclosure.rcept_no == row["rcept_no"])
+                )
+                if existing.scalar_one_or_none():
+                    skipped_dup += 1
+                    continue
+                db.add(Disclosure(**row))
+                inserted += 1
+                if max_new > 0 and inserted >= max_new:
+                    break
+            await db.commit()
+
+        days_walked += 1
+        if max_new > 0 and inserted >= max_new:
+            break
+        day = day - _td(days=1)
+
+    elapsed = (datetime.now(timezone.utc) - t0).total_seconds()
+    done = day < stop_date
+    return {
+        "inserted": inserted,
+        "skipped_duplicate": skipped_dup,
+        "skipped_no_ticker": skipped_noticker,
+        "days_walked": days_walked,
+        "cursor_start": cursor_date.strftime("%Y-%m-%d"),
+        "cursor_end": day.strftime("%Y-%m-%d"),
+        "next_cursor": None if done else day.strftime("%Y-%m-%d"),
+        "stop_date": start,
+        "elapsed_seconds": round(elapsed, 1),
+        "done": done,
+    }
+
+
 async def _run_historical_backfill(days: int) -> dict:
     """과거 N일 공시 일회성 수집. Daily cron의 작은 윈도우로는 영영 채워지지
     않는 역사적 gap 을 복구. rcept_no UNIQUE 로 중복 skip → idempotent.
@@ -313,6 +402,9 @@ async def list_jobs(x_admin_token: str | None = Header(default=None, alias="X-Ad
 async def trigger_job(
     job_id: str,
     days: int | None = None,
+    start: str | None = None,
+    cursor: str | None = None,
+    max_new: int | None = None,
     x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
 ):
     """Job을 **동기적으로** 실행하고 완료 후 결과 반환.
@@ -338,6 +430,15 @@ async def trigger_job(
         # ?days=N 쿼리로 윈도우 지정. 없으면 30일. 7-90 clamp.
         d = max(7, min(90, days or 30))
         result = await _run_historical_backfill(d)
+    elif argv == "inline" and job_id == "backfill_year_gaps":
+        # ?start=YYYY-MM-DD (default 2026-01-01), ?max_new=N (default 150, 0=무제한),
+        # ?cursor=YYYY-MM-DD (optional resume point).
+        mn = 150 if max_new is None else max(0, min(5000, max_new))
+        result = await _run_backfill_year_gaps(
+            start=start or "2026-01-01",
+            max_new=mn,
+            cursor=cursor,
+        )
     elif argv == "inline" and job_id == "backfill_watchlist_governance":
         # ?days=N 이면 선행 per-ticker DART backfill 포함 (0-365 clamp, 0=skip).
         bd = max(0, min(365, days or 0))
