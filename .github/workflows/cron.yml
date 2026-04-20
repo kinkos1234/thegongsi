@@ -11,8 +11,11 @@ name: cron triggers
 on:
   schedule:
     # === 매일 (UTC) ===
-    # KST 06:00 = UTC 21:00 — daily_collection
-    - cron: '0 21 * * *'
+    # daily_collection은 장중 커버리지를 위해 3회 — KST 10:00 / 14:00 / 18:00
+    # (장 시작 후, 오후 중간, 장 마감 직후). DART 접수는 07:00~18:00 KST 피크.
+    - cron: '0 1 * * *'    # KST 10:00 = UTC 01:00 — daily_collection
+    - cron: '0 5 * * *'    # KST 14:00 = UTC 05:00 — daily_collection
+    - cron: '0 9 * * *'    # KST 18:00 = UTC 09:00 — daily_collection
     # KST 07:00 = UTC 22:00 — daily_ex_dates_scan
     - cron: '0 22 * * *'
     # KST 07:30 = UTC 22:30 — daily_dividend_scan
@@ -64,7 +67,9 @@ jobs:
           fi
           # schedule: github.event.schedule 매핑
           case "${{ github.event.schedule }}" in
-            "0 21 * * *")   echo "jobs=daily_collection" >> "$GITHUB_OUTPUT" ;;
+            # daily_collection 3회 (KST 10/14/18)
+            "0 1 * * *"|"0 5 * * *"|"0 9 * * *")
+                            echo "jobs=daily_collection" >> "$GITHUB_OUTPUT" ;;
             "0 22 * * *")   echo "jobs=daily_ex_dates_scan" >> "$GITHUB_OUTPUT" ;;
             "30 22 * * *")  echo "jobs=daily_dividend_scan" >> "$GITHUB_OUTPUT" ;;
             "0 23 * * *")   echo "jobs=daily_earnings_scan" >> "$GITHUB_OUTPUT" ;;
