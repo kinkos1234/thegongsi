@@ -1,5 +1,8 @@
 """종목 대시보드 라우터."""
-from fastapi import APIRouter, Depends, HTTPException, Query
+import logging
+from datetime import datetime, timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,8 +11,13 @@ from app.models.tables import (
     Company,
     CorporateOwnership,
     Disclosure,
+    GovernanceExtractRequest,
+    Insider,
+    MajorShareholder,
     ShortSellingSnapshot,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -259,3 +267,151 @@ async def today_anomalies(ticker: str, db: AsyncSession = Depends(get_db)):
             for d in rows[:3]
         ],
     }
+
+
+# ─── Phase 3: user-triggered governance extraction ─────────────────────────
+# 워치리스트에 없는 "콜드" 종목을 사용자가 열람했을 때, 스스로 "AI 추출 시작"
+# 버튼을 눌러 governance 스냅샷을 채울 수 있게 한다. Anthropic 비용 보호를
+# 위한 다층 가드:
+#   - 이미 추출된 ticker: 즉시 거절 (비용 0)
+#   - ticker당 1시간 내 시도 1회: 쿨다운 (중복 트리거 방지)
+#   - IP당 시간당 3회, 일 10회: rate limit (크롤러/악용 방지)
+# 요청 로그(GovernanceExtractRequest)는 추적·감사용 영구 보존.
+
+_TICKER_COOLDOWN_MIN = 60  # ticker 단위 쿨다운
+_IP_HOUR_LIMIT = 3          # IP당 시간당
+_IP_DAY_LIMIT = 10          # IP당 일
+
+
+async def _has_governance_data(ticker: str, db: AsyncSession) -> bool:
+    r = await db.execute(select(MajorShareholder.id).where(MajorShareholder.ticker == ticker).limit(1))
+    if r.first():
+        return True
+    r = await db.execute(select(Insider.id).where(Insider.ticker == ticker).limit(1))
+    if r.first():
+        return True
+    r = await db.execute(
+        select(CorporateOwnership.id)
+        .where(
+            or_(
+                CorporateOwnership.parent_ticker == ticker,
+                CorporateOwnership.child_ticker == ticker,
+            )
+        )
+        .limit(1)
+    )
+    return r.first() is not None
+
+
+def _client_ip(request: Request) -> str:
+    # Fly / reverse proxy 환경: X-Forwarded-For 맨 앞이 실제 클라이언트.
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()[:64]
+    return (request.client.host if request.client else "unknown")[:64]
+
+
+@router.post("/{ticker}/governance/extract")
+async def extract_governance_on_demand(
+    ticker: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """사용자가 "AI 지배구조 추출" 버튼 눌렀을 때의 퍼블릭 엔드포인트.
+
+    동기 실행: 호출 즉시 DART fetch + LLM 추출(20-60초) 후 결과 반환.
+    큐 + 워커 구조 대신 인라인으로 처리 — Fly auto-start + Actions 동일 패턴.
+
+    쿨다운/리밋에 걸리면 `status`에 사유, `next_eligible_at`(UTC ISO) 반환.
+    """
+    company_r = await db.execute(select(Company).where(Company.ticker == ticker))
+    if not company_r.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="ticker not found")
+
+    if await _has_governance_data(ticker, db):
+        return {"status": "already_extracted", "ticker": ticker}
+
+    ip = _client_ip(request)
+    now = datetime.utcnow()
+
+    # 1) ticker 쿨다운
+    last_ticker_r = await db.execute(
+        select(GovernanceExtractRequest)
+        .where(
+            GovernanceExtractRequest.ticker == ticker,
+            GovernanceExtractRequest.requested_at > now - timedelta(minutes=_TICKER_COOLDOWN_MIN),
+        )
+        .order_by(GovernanceExtractRequest.requested_at.desc())
+        .limit(1)
+    )
+    last_ticker = last_ticker_r.scalar_one_or_none()
+    if last_ticker is not None:
+        next_eligible = last_ticker.requested_at + timedelta(minutes=_TICKER_COOLDOWN_MIN)
+        return {
+            "status": "cooldown",
+            "ticker": ticker,
+            "last_status": last_ticker.status,
+            "next_eligible_at": next_eligible.isoformat() + "Z",
+        }
+
+    # 2) IP rate limit
+    hour_ago = now - timedelta(hours=1)
+    day_ago = now - timedelta(days=1)
+    ip_hour_r = await db.execute(
+        select(func.count())
+        .select_from(GovernanceExtractRequest)
+        .where(
+            GovernanceExtractRequest.requester_ip == ip,
+            GovernanceExtractRequest.requested_at > hour_ago,
+        )
+    )
+    ip_hour = ip_hour_r.scalar_one()
+    ip_day_r = await db.execute(
+        select(func.count())
+        .select_from(GovernanceExtractRequest)
+        .where(
+            GovernanceExtractRequest.requester_ip == ip,
+            GovernanceExtractRequest.requested_at > day_ago,
+        )
+    )
+    ip_day = ip_day_r.scalar_one()
+    if ip_hour >= _IP_HOUR_LIMIT or ip_day >= _IP_DAY_LIMIT:
+        return {
+            "status": "ip_limit",
+            "ticker": ticker,
+            "ip_hour": ip_hour,
+            "ip_day": ip_day,
+            "limits": {"per_hour": _IP_HOUR_LIMIT, "per_day": _IP_DAY_LIMIT},
+        }
+
+    # 3) 실행
+    req = GovernanceExtractRequest(
+        ticker=ticker, status="processing", requester_ip=ip,
+    )
+    db.add(req)
+    await db.commit()
+    await db.refresh(req)
+
+    from app.services.graph.extractor import extract_from_disclosures
+    try:
+        result = await extract_from_disclosures(ticker)
+        st = result.get("status", "done")
+        # no_governance_disclosures → 'no_data'로 정규화
+        norm = "no_data" if st in ("no_governance_disclosures",) else (
+            "done" if st == "ok" else st
+        )
+        req.status = norm
+        req.finished_at = datetime.utcnow()
+        req.result_summary = (
+            f"persons={result.get('persons_upserted', 0)} "
+            f"corps={result.get('corps_upserted', 0)}"
+        )[:200]
+        await db.commit()
+        return {"status": norm, "ticker": ticker, "result": result}
+    except Exception as e:
+        logger.exception("on-demand governance extract failed for %s", ticker)
+        req.status = "failed"
+        req.finished_at = datetime.utcnow()
+        req.error = f"{type(e).__name__}: {e}"[:500]
+        await db.commit()
+        raise HTTPException(status_code=500, detail=f"추출 실패: {e}")

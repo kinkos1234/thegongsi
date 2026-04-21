@@ -90,23 +90,69 @@ function buildNarrative(d: Governance): string | null {
   return parts.join(" · ");
 }
 
+type ExtractState = "idle" | "running" | "done" | "cooldown" | "ip_limit" | "no_data" | "error";
+
 /** 지배구조 블록 — 최대주주 / 임원 / 모자회사 / 순환출자 고리.
  *
  * 한국 시장 고유 시각: 재벌 지배구조 특성을 그대로 화면에 드러낸다.
- * 데이터 없으면 전체 섹션 hide (graceful).
+ * 데이터 없으면 no-data fallback + 사용자가 직접 AI 추출 트리거 버튼 노출.
  */
 export function GovernanceBlock({ ticker }: { ticker: string }) {
   const [data, setData] = useState<Governance | null>(null);
   const [err, setErr] = useState(false);
+  const [extract, setExtract] = useState<ExtractState>("idle");
+  const [extractMsg, setExtractMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    const ctl = new AbortController();
-    fetch(`${API}/api/companies/${ticker}/governance`, { signal: ctl.signal })
+  const load = (signal?: AbortSignal) =>
+    fetch(`${API}/api/companies/${ticker}/governance`, { signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then(setData)
       .catch(() => setErr(true));
+
+  useEffect(() => {
+    const ctl = new AbortController();
+    load(ctl.signal);
     return () => ctl.abort();
   }, [ticker]);
+
+  async function triggerExtract() {
+    setExtract("running");
+    setExtractMsg(null);
+    try {
+      const r = await fetch(
+        `${API}/api/companies/${ticker}/governance/extract`,
+        { method: "POST" },
+      );
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.detail || `HTTP ${r.status}`);
+      }
+      const d = await r.json();
+      const st: string = d.status || "error";
+      if (st === "done" || st === "ok" || st === "already_extracted") {
+        setExtract("done");
+        await load();
+      } else if (st === "cooldown") {
+        setExtract("cooldown");
+        const until = d.next_eligible_at
+          ? new Date(d.next_eligible_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })
+          : null;
+        setExtractMsg(until ? `최근 시도가 있어 ${until} 이후 재시도 가능` : "쿨다운 중");
+      } else if (st === "ip_limit") {
+        setExtract("ip_limit");
+        setExtractMsg(`시간당 ${d.limits?.per_hour}회 · 일 ${d.limits?.per_day}회 초과`);
+      } else if (st === "no_data") {
+        setExtract("no_data");
+        setExtractMsg("최근 공시에 지배구조 관련 내용이 없습니다");
+      } else {
+        setExtract("error");
+        setExtractMsg(`알 수 없는 상태: ${st}`);
+      }
+    } catch (e) {
+      setExtract("error");
+      setExtractMsg(e instanceof Error ? e.message : "요청 실패");
+    }
+  }
 
   if (err || !data) return null;
   const { shareholders, insiders, parents, children, cycles } = data;
@@ -118,6 +164,14 @@ export function GovernanceBlock({ ticker }: { ticker: string }) {
     cycles.length > 0;
 
   if (!hasAny) {
+    const btnLabel =
+      extract === "idle" ? "AI 지배구조 추출 시작 →"
+      : extract === "running" ? "추출 중… (20-60초)"
+      : extract === "done" ? "✓ 완료 — 새로고침 중"
+      : extract === "no_data" ? "재시도 →"
+      : extract === "cooldown" || extract === "ip_limit" ? "잠시 후 재시도 →"
+      : "재시도 →";
+
     return (
       <section className="mt-10 border-t border-border/50 pt-8">
         <div className="flex items-baseline justify-between mb-4">
@@ -128,13 +182,23 @@ export function GovernanceBlock({ ticker }: { ticker: string }) {
         </div>
         <div className="border border-border/40 bg-bg-2/30 px-5 py-4">
           <p className="text-[13px] text-fg-2 leading-[1.65]">
-            이 종목의 지배구조 스냅샷이 아직 수집되지 않았습니다. DART 지배구조·대주주 공시에서
-            AI 추출 파이프라인이 가동되면 자동으로 채워집니다.
+            이 종목의 지배구조 스냅샷이 아직 수집되지 않았습니다. 아래 버튼을 누르면
+            DART 공시 본문에서 Claude가 최대주주·임원·계열사 지분을 실시간으로 추출합니다.
           </p>
-          <p className="mono text-[11px] text-fg-3 mt-2">
-            관리자 실행:{" "}
-            <code className="bg-bg-3 px-1">POST /api/graph/extract-governance</code>
-            {" · "}요청 큐잉은 Phase 2 예정
+          <div className="mt-3">
+            <button
+              onClick={triggerExtract}
+              disabled={extract === "running" || extract === "done"}
+              className="mono text-[12px] text-accent border border-accent px-4 py-2 hover:bg-accent-dim transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {btnLabel}
+            </button>
+          </div>
+          {extractMsg && (
+            <p className="mono text-[11px] text-fg-3 mt-2">{extractMsg}</p>
+          )}
+          <p className="mono text-[10px] text-fg-3 mt-3">
+            한 종목당 1시간 · IP당 시간 3회 / 일 10회 제한 — 비용 보호.
           </p>
         </div>
       </section>

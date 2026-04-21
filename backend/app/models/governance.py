@@ -66,6 +66,39 @@ class Insider(Base):
     fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class GovernanceExtractRequest(Base):
+    """사용자가 트리거한 지배구조 추출 요청 로그.
+
+    용도:
+    1. 쿨다운: 같은 ticker를 1시간 내 중복 트리거 방지 (Anthropic 비용 보호)
+    2. Rate limit: 같은 IP가 시간당 과도 호출 방지
+    3. 상태 노출: 처리 중/완료/실패 프런트 상태 표시
+
+    Why not 큐 테이블: 추출이 20-60s 동기 호출로 충분해 별도 worker가 불필요.
+    이 테이블은 rate limit + 감사 로그 목적. 나중에 async 워커가 필요해지면
+    status='pending' 행을 별도 잡이 폴링하도록 확장 가능.
+    """
+
+    __tablename__ = "governance_extract_requests"
+    __table_args__ = (
+        Index("ix_gov_extract_ticker_at", "ticker", "requested_at"),
+        Index("ix_gov_extract_ip_at", "requester_ip", "requested_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(12), primary_key=True, default=gen_id)
+    ticker: Mapped[str] = mapped_column(String(10))
+    # 'processing' → extract 진행 중, 'done' → 성공, 'no_data' → governance 공시 없음,
+    # 'failed' → 예외 발생, 'cooldown'/'ip_limit' → 실행 없이 거절됨
+    status: Mapped[str] = mapped_column(String(16))
+    requested_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    requester_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 추출 결과 요약 (persons 수, corps 수) — 간단한 문자열
+    result_summary: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
 class CorporateOwnership(Base):
     """기업간 지분 보유 — Company → Company edge. 순환출자 검출 1차 소스.
 

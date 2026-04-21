@@ -77,6 +77,10 @@ JOBS: dict[str, tuple[list[str] | str, str]] = {
         "inline",
         "전체 watchlist 종목 governance 스냅샷 일괄 추출 (기존 누락 backfill)",
     ),
+    "extract_governance_ticker": (
+        "inline",
+        "단일 ticker governance 추출 (콜드 종목 긴급 채움용, ?ticker=XXXXXX)",
+    ),
     "weekly_index_sync": (
         ["scripts/weekly_sync.py"],
         "KOSPI 200 + KOSDAQ 150 구성원 sync + backfill",
@@ -446,6 +450,7 @@ async def trigger_job(
     start: str | None = None,
     cursor: str | None = None,
     max_new: int | None = None,
+    ticker: str | None = None,
     x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
 ):
     """Job을 **동기적으로** 실행하고 완료 후 결과 반환.
@@ -489,6 +494,11 @@ async def trigger_job(
         # ?days=N 이면 선행 per-ticker DART backfill 포함 (0-365 clamp, 0=skip).
         bd = max(0, min(365, days or 0))
         result = await _run_backfill_watchlist_governance(backfill_days=bd)
+    elif argv == "inline" and job_id == "extract_governance_ticker":
+        if not ticker:
+            raise HTTPException(status_code=400, detail="ticker query param required")
+        from app.services.graph.extractor import extract_from_disclosures
+        result = await extract_from_disclosures(ticker)
     elif argv == "inline" and job_id == "graph_ping":
         result = await _run_graph_ping()
     elif argv == "inline" and job_id == "extract_supply_chains":

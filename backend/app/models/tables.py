@@ -17,7 +17,12 @@ from app.models.user import (
 from app.models.market import Company, FinancialSnapshot, ShortSellingSnapshot
 from app.models.signals import CalendarEvent, Disclosure, EarningsEvent, NewsItem
 from app.models.memo import DDMemo, DDMemoVersion
-from app.models.governance import CorporateOwnership, Insider, MajorShareholder
+from app.models.governance import (
+    CorporateOwnership,
+    GovernanceExtractRequest,
+    Insider,
+    MajorShareholder,
+)
 
 __all__ = [
     "Base",
@@ -42,4 +47,5 @@ __all__ = [
     "MajorShareholder",
     "Insider",
     "CorporateOwnership",
+    "GovernanceExtractRequest",
 ]
