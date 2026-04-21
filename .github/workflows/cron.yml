@@ -11,11 +11,17 @@ name: cron triggers
 on:
   schedule:
     # === 매일 (UTC) ===
-    # daily_collection은 장중 커버리지를 위해 3회 — KST 10:00 / 14:00 / 18:00
+    # daily_collection은 장중 커버리지를 위해 3회 — KST 10:17 / 14:17 / 18:17
     # (장 시작 후, 오후 중간, 장 마감 직후). DART 접수는 07:00~18:00 KST 피크.
-    - cron: '0 1 * * *'    # KST 10:00 = UTC 01:00 — daily_collection
-    - cron: '0 5 * * *'    # KST 14:00 = UTC 05:00 — daily_collection
-    - cron: '0 9 * * *'    # KST 18:00 = UTC 09:00 — daily_collection
+    #
+    # `:17`로 오프셋한 이유: GitHub은 공식 문서에서 "schedule event는 매시
+    # 정각(:00)에 지연 가능성이 크다"고 명시. 실관측으로도 `0 1/5/9 * * *`
+    # 스케줄이 수일 연속 드롭됨 (최근 20회 스케줄 중 01/05/09 UTC 버킷은 2회만
+    # 발화). 정각을 피해 분을 :17로 이동시키면 최상위 큐 혼잡을 회피.
+    # 22/23 UTC는 evening 한산 시간대라 정각이어도 안정적으로 발화 중.
+    - cron: '17 1 * * *'   # KST 10:17 = UTC 01:17 — daily_collection
+    - cron: '17 5 * * *'   # KST 14:17 = UTC 05:17 — daily_collection
+    - cron: '17 9 * * *'   # KST 18:17 = UTC 09:17 — daily_collection
     # KST 07:00 = UTC 22:00 — daily_ex_dates_scan
     - cron: '0 22 * * *'
     # KST 07:30 = UTC 22:30 — daily_dividend_scan
