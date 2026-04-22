@@ -74,8 +74,8 @@ jobs:
           fi
           # schedule: github.event.schedule 매핑
           case "${{ github.event.schedule }}" in
-            # daily_collection 3회 (KST 10/14/18)
-            "0 1 * * *"|"0 5 * * *"|"0 9 * * *")
+            # daily_collection 3회 (KST 10:17/14:17/18:17, :17 오프셋 — a7aa44a)
+            "17 1 * * *"|"17 5 * * *"|"17 9 * * *")
                             echo "jobs=daily_collection" >> "$GITHUB_OUTPUT" ;;
             "0 22 * * *")   echo "jobs=daily_ex_dates_scan" >> "$GITHUB_OUTPUT" ;;
             "30 22 * * *")  echo "jobs=daily_dividend_scan" >> "$GITHUB_OUTPUT" ;;
