@@ -36,23 +36,30 @@ def _fetch_corp_codes(api_key: str) -> list[dict]:
     resp.raise_for_status()
     data = resp.content
     logger.info(f"  → {len(data):,} bytes 수신, 파싱 중")
+    corps: list[dict] = []
+    # iterparse 스트리밍: ET.parse는 압축 해제된 ~40MB XML을 DOM으로 통째로 들어
+    # Fly 512MB VM에서 OOM(SIGKILL)을 일으킨다. element 단위로 처리·clear하고
+    # root.clear()로 자식 누적까지 끊어야 메모리가 일정하게 유지된다.
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         with zf.open("CORPCODE.xml") as f:
-            tree = ET.parse(f)
+            context = iter(ET.iterparse(f, events=("start", "end")))
+            _, root = next(context)
+            for event, elem in context:
+                if event != "end" or elem.tag != "list":
+                    continue
+                def g(tag: str) -> str:
+                    el = elem.find(tag)
+                    return (el.text or "").strip() if el is not None else ""
+                stock_code = g("stock_code")
+                if stock_code:
+                    corps.append({
+                        "corp_code": g("corp_code"),
+                        "corp_name": g("corp_name"),
+                        "stock_code": stock_code,
+                    })
+                elem.clear()
+                root.clear()
     logger.info("  → XML 파싱 완료")
-    corps = []
-    for item in tree.getroot().findall("list"):
-        def g(tag: str) -> str:
-            el = item.find(tag)
-            return (el.text or "").strip() if el is not None else ""
-        stock_code = g("stock_code")
-        if not stock_code:
-            continue
-        corps.append({
-            "corp_code": g("corp_code"),
-            "corp_name": g("corp_name"),
-            "stock_code": stock_code,
-        })
     return corps
 
 
