@@ -7,12 +7,15 @@ primary_region = "nrt"  # Tokyo — 한국 사용자에 가장 가까움
 [build]
   dockerfile = "Dockerfile"
 
+[deploy]
+  release_command = "alembic upgrade head"
+
 [env]
   PORT = "8888"
   # 나머지는 fly secrets 로 설정:
   #   DATABASE_URL, NEO4J_URL/USER/PASSWORD, JWT_SECRET_KEY,
   #   ANTHROPIC_API_KEY, DART_API_KEY, ADMIN_EMAILS,
-  #   CORS_ORIGINS, FIELD_ENCRYPTION_KEY
+  #   CORS_ORIGINS, FIELD_ENCRYPTION_KEY, ADMIN_JOBS_TOKEN
 
 [http_service]
   internal_port = 8888

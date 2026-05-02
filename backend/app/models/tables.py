@@ -7,15 +7,20 @@ from app.models._base import Base, gen_id
 from app.models.user import (
     AlertConfig,
     AlertHistory,
+    AdminJobRun,
     DisclosureFeedback,
+    EventReview,
     MemoFeedback,
+    Organization,
+    OrganizationInvite,
+    OrganizationMember,
     ReferenceSummary,
     ServerKeyUsage,
     User,
     WatchListItem,
 )
 from app.models.market import Company, FinancialSnapshot, ShortSellingSnapshot
-from app.models.signals import CalendarEvent, Disclosure, EarningsEvent, NewsItem
+from app.models.signals import CalendarEvent, Disclosure, DisclosureEvidence, EarningsEvent, NewsItem
 from app.models.memo import DDMemo, DDMemoVersion
 from app.models.governance import (
     CorporateOwnership,
@@ -31,14 +36,20 @@ __all__ = [
     "WatchListItem",
     "AlertConfig",
     "AlertHistory",
+    "AdminJobRun",
     "DisclosureFeedback",
+    "EventReview",
     "MemoFeedback",
+    "Organization",
+    "OrganizationInvite",
+    "OrganizationMember",
     "ReferenceSummary",
     "ServerKeyUsage",
     "Company",
     "FinancialSnapshot",
     "ShortSellingSnapshot",
     "Disclosure",
+    "DisclosureEvidence",
     "EarningsEvent",
     "NewsItem",
     "CalendarEvent",

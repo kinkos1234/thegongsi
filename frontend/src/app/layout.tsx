@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { NavBar } from "@/components/NavBar";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { ConventionOnboarding } from "@/components/ConventionOnboarding";
@@ -32,7 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <Script id="theme-init" strategy="beforeInteractive">
+          {THEME_INIT_SCRIPT}
+        </Script>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="" />
@@ -45,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600&family=Gowun+Batang:wght@400;700&family=Hahmlet:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
         />
       </head>
-      <body className="pb-16 md:pb-0">
+      <body className="pb-16 md:pb-0" suppressHydrationWarning>
         <EditorialMasthead />
         <NavBar />
         {children}

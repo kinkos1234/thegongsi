@@ -18,18 +18,17 @@ async def list_events(
 ):
     # companies LEFT JOIN 으로 종목명(name_ko) 함께 반환 — 프론트에서 티커만 보여주면
     # 직관성 떨어짐 (Threads 피드백 반영, 2026-04-18).
-    query = (
-        select(EarningsEvent, Company.name_ko)
-        .outerjoin(Company, Company.ticker == EarningsEvent.ticker)
-        .order_by(EarningsEvent.scheduled_date.asc())
-        .limit(50)
-    )
+    query = select(EarningsEvent, Company.name_ko).outerjoin(Company, Company.ticker == EarningsEvent.ticker)
     if ticker:
         query = query.where(EarningsEvent.ticker == ticker)
     if upcoming:
         from datetime import date
         today = date.today().isoformat()
         query = query.where(EarningsEvent.scheduled_date >= today)
+        query = query.order_by(EarningsEvent.scheduled_date.asc())
+    else:
+        query = query.order_by(EarningsEvent.reported_date.desc(), EarningsEvent.scheduled_date.desc())
+    query = query.limit(50)
     result = await db.execute(query)
     rows = result.all()
     return [

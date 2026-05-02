@@ -6,6 +6,18 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 type Point = { d: string; c: number };
 
 export function Sparkline({ data, up }: { data: Point[]; up: boolean }) {
+  // CSS var는 Recharts SVG attribute에 바로 안 먹을 수 있어 실 computed 값 resolution.
+  // theme / convention 토글 시 attribute 변경 감지해 rerender.
+  const [themeTick, setThemeTick] = useState(0);
+  useEffect(() => {
+    const obs = new MutationObserver(() => setThemeTick((t) => t + 1));
+    obs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme", "data-convention"],
+    });
+    return () => obs.disconnect();
+  }, []);
+
   if (!data || data.length === 0) return <div className="h-[160px] text-fg-3 flex items-center">데이터 없음</div>;
 
   const closes = data.map((p) => p.c);
@@ -24,17 +36,6 @@ export function Sparkline({ data, up }: { data: Point[]; up: boolean }) {
     );
   }
 
-  // CSS var는 Recharts SVG attribute에 바로 안 먹을 수 있어 실 computed 값 resolution.
-  // theme / convention 토글 시 attribute 변경 감지해 rerender.
-  const [themeTick, setThemeTick] = useState(0);
-  useEffect(() => {
-    const obs = new MutationObserver(() => setThemeTick((t) => t + 1));
-    obs.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme", "data-convention"],
-    });
-    return () => obs.disconnect();
-  }, []);
   const rootStyle =
     typeof window !== "undefined" ? getComputedStyle(document.documentElement) : null;
   const convention =
@@ -48,8 +49,8 @@ export function Sparkline({ data, up }: { data: Point[]; up: boolean }) {
   const color = convention === "kr" ? (up ? sevHigh : krDown) : up ? accentColor : downColor;
   void themeTick; // force re-read on attribute change
   return (
-    <div className="h-[160px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="h-[160px] min-h-[160px] w-full min-w-0">
+      <ResponsiveContainer width="100%" height={160} minWidth={0} minHeight={160}>
         <LineChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
           <YAxis hide domain={[min * 0.995, max * 1.005]} />
           <Tooltip

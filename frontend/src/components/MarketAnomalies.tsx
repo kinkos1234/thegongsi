@@ -66,6 +66,7 @@ export function MarketAnomalies({ limit = 3 }: { limit?: number }) {
     const ctl = new AbortController();
     async function load() {
       try {
+        setErr(false);
         const r1 = await fetch(`${API}/api/disclosures/?severity=high&limit=${limit}`, {
           signal: ctl.signal,
         });
@@ -95,11 +96,12 @@ export function MarketAnomalies({ limit = 3 }: { limit?: number }) {
           return;
         }
         setRows([]);
-      } catch {
+      } catch (e) {
+        if (ctl.signal.aborted || (e instanceof DOMException && e.name === "AbortError")) return;
         setErr(true);
       }
     }
-    load();
+    void load();
     return () => ctl.abort();
   }, [limit]);
 
@@ -118,7 +120,7 @@ export function MarketAnomalies({ limit = 3 }: { limit?: number }) {
           {tone.label}
         </p>
         <Link
-          href="/ask"
+          href="/events"
           className="mono text-[11px] text-fg-3 hover:text-accent tracking-wider"
         >
           all →

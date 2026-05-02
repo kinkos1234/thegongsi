@@ -1,13 +1,15 @@
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.tables import Company, User, WatchListItem
+from app.models.tables import Company, Disclosure, EventReview, User, WatchListItem
 from app.routers import get_current_user
+from app.services.organizations import current_organization_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -51,22 +53,12 @@ async def _backfill_task(ticker: str, days: int, user_id: str | None = None):
     # (1) 권리락·배당락 이벤트 스캔 + 저장 (corp_code 있어야 함)
     if corp_code:
         try:
-            import asyncpg
-            import os
-            from app.services.calendar.ex_dates import scan_ex_dates, upsert_events
+            from app.services.calendar.ex_dates import scan_ex_dates
+            from app.services.calendar.upsert import upsert_calendar_events
             events = await scan_ex_dates([(ticker, corp_code)], days_back=180, concurrency=3)
             if events:
-                url = os.environ.get("DATABASE_URL", "")
-                for p in ("postgresql+asyncpg://", "postgres+asyncpg://"):
-                    if url.startswith(p):
-                        url = url.replace(p, "postgresql://", 1)
-                        break
-                conn = await asyncpg.connect(url)
-                try:
-                    await upsert_events(conn, events)
-                    logger.info(f"watchlist calendar {ticker}: +{len(events)} events")
-                finally:
-                    await conn.close()
+                await upsert_calendar_events(events)
+                logger.info(f"watchlist calendar {ticker}: +{len(events)} events")
         except Exception as e:
             logger.warning(f"watchlist calendar {ticker} skipped: {e}")
 
@@ -91,6 +83,117 @@ async def _backfill_task(ticker: str, days: int, user_id: str | None = None):
 class AddRequest(BaseModel):
     ticker: str
     backfill_days: int = Field(90, ge=0, le=365, description="공시 백필 기간 (0=비활성, 최대 1년)")
+
+
+@router.get("/brief")
+async def watchlist_brief(
+    days: int = 7,
+    limit: int = 20,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """관심종목 기준 high/medium 공시 브리핑.
+
+    제품의 1차 워크플로: "내 종목에서 오늘 무엇을 봐야 하나?"에 답한다.
+    전시장 이벤트 큐와 달리 로그인 사용자의 watchlist tickers로 먼저 좁힌다.
+    """
+    days = max(1, min(30, days))
+    limit = max(1, min(100, limit))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+
+    watch_rows = (
+        await db.execute(
+            select(WatchListItem.ticker)
+            .where(WatchListItem.user_id == user.id)
+            .order_by(WatchListItem.added_at.desc())
+        )
+    ).all()
+    tickers = [row[0] for row in watch_rows]
+    if not tickers:
+        return {
+            "as_of": datetime.now(timezone.utc).isoformat(),
+            "days": days,
+            "watchlist_count": 0,
+            "counts": {"high": 0, "med": 0, "new": 0, "reviewed": 0, "dismissed": 0, "escalated": 0},
+            "items": [],
+            "quiet_tickers": [],
+        }
+
+    severity_rank = case(
+        (Disclosure.anomaly_severity == "high", 0),
+        (Disclosure.anomaly_severity == "med", 1),
+        else_=2,
+    )
+    rows = (
+        await db.execute(
+            select(Disclosure, Company.name_ko, Company.market, Company.sector)
+            .join(Company, Company.ticker == Disclosure.ticker, isouter=True)
+            .where(
+                Disclosure.ticker.in_(tickers),
+                Disclosure.rcept_dt >= cutoff,
+                Disclosure.anomaly_severity.in_(["high", "med"]),
+            )
+            .order_by(severity_rank.asc(), Disclosure.rcept_dt.desc())
+            .limit(limit)
+        )
+    ).all()
+
+    review_map: dict[str, EventReview] = {}
+    if rows:
+        org_id = await current_organization_id(db, user)
+        rcepts = [d.rcept_no for d, *_ in rows]
+        review_rows = (
+            await db.execute(
+                select(EventReview).where(
+                    EventReview.organization_id == org_id,
+                    EventReview.rcept_no.in_(rcepts),
+                )
+            )
+        ).scalars().all()
+        review_map = {r.rcept_no: r for r in review_rows}
+
+    items = []
+    active_tickers: set[str] = set()
+    for d, name, market, sector in rows:
+        active_tickers.add(d.ticker)
+        review = review_map.get(d.rcept_no)
+        severity = d.anomaly_severity or "uncertain"
+        items.append({
+            "id": d.rcept_no,
+            "ticker": d.ticker,
+            "company": name,
+            "market": market,
+            "sector": sector,
+            "date": d.rcept_dt,
+            "title": d.report_nm,
+            "severity": severity,
+            "reason": d.anomaly_reason,
+            "summary": d.summary_ko,
+            "status": review.status if review else "new",
+            "review_note": review.note if review else None,
+            "evidence": {
+                "rcept_no": d.rcept_no,
+                "dart_url": d.raw_url or f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={d.rcept_no}",
+            },
+        })
+
+    quiet_tickers = [ticker for ticker in tickers if ticker not in active_tickers]
+    counts = {
+        "high": sum(1 for item in items if item["severity"] == "high"),
+        "med": sum(1 for item in items if item["severity"] == "med"),
+        "new": sum(1 for item in items if item["status"] == "new"),
+        "reviewed": sum(1 for item in items if item["status"] == "reviewed"),
+        "dismissed": sum(1 for item in items if item["status"] == "dismissed"),
+        "escalated": sum(1 for item in items if item["status"] == "escalated"),
+    }
+    return {
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "days": days,
+        "watchlist_count": len(tickers),
+        "counts": counts,
+        "items": items,
+        "quiet_tickers": quiet_tickers,
+    }
 
 
 @router.get("/")

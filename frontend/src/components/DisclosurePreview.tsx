@@ -11,9 +11,27 @@ type Preview = {
   summary_ko: string | null;
   fields: Record<string, string>;
   dart_url: string;
+  evidence?: DisclosureEvidence[];
 };
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888";
+
+type DisclosureEvidenceItem = {
+  type?: string;
+  keyword?: string;
+  source?: string;
+  text?: string;
+  matched?: boolean;
+  rule_set?: string;
+};
+
+type DisclosureEvidence = {
+  kind: string;
+  method: string;
+  model?: string | null;
+  prompt_version?: string | null;
+  items: DisclosureEvidenceItem[];
+};
 
 export function DisclosurePreview({
   rceptNo,
@@ -44,6 +62,7 @@ export function DisclosurePreview({
   }, [onClose]);
 
   const fieldEntries = data ? Object.entries(data.fields) : [];
+  const evidenceRows = data?.evidence ?? [];
 
   return (
     <div
@@ -94,6 +113,43 @@ export function DisclosurePreview({
             <section className="mb-6">
               <h3 className="mono text-[11px] text-fg-3 uppercase tracking-wider mb-2">AI 요약</h3>
               <p className="text-[14px] text-fg leading-[1.7]">{data.summary_ko}</p>
+            </section>
+          )}
+          {evidenceRows.length > 0 && (
+            <section className="mb-6 border border-border/50 bg-bg/50 p-4">
+              <h3 className="mono text-[11px] text-fg-3 uppercase tracking-wider mb-3">
+                판정 근거
+              </h3>
+              <div className="space-y-3">
+                {evidenceRows.map((row) => (
+                  <div key={`${row.kind}-${row.method}`} className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2 mono text-[11px] text-fg-3">
+                      <span className="text-fg-2">{row.kind}</span>
+                      <span>method={row.method}</span>
+                      {row.model && <span>model={row.model}</span>}
+                      {row.prompt_version && <span>prompt={row.prompt_version}</span>}
+                    </div>
+                    <ul className="space-y-1">
+                      {row.items.map((item, idx) => (
+                        <li key={idx} className="text-[13px] leading-[1.6] text-fg-2">
+                          {item.keyword ? (
+                            <>
+                              <span className="mono text-accent">"{item.keyword}"</span>
+                              <span> 매칭 · </span>
+                            </>
+                          ) : item.matched === false ? (
+                            <span>매칭 없음 · </span>
+                          ) : null}
+                          <span>{item.text ?? item.source ?? item.type ?? "근거 항목"}</span>
+                          {item.rule_set && (
+                            <span className="mono text-[11px] text-fg-3"> · {item.rule_set}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             </section>
           )}
           {data && fieldEntries.length > 0 && (

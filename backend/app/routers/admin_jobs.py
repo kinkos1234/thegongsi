@@ -15,6 +15,7 @@ subprocess를 죽이는 버그가 있었음. 지금은 subprocess 완료까지 H
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -24,8 +25,11 @@ import sys
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Header, HTTPException, status
+from sqlalchemy import select
 
 from app.config import settings
+from app.database import async_session
+from app.models.tables import AdminJobRun
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +52,77 @@ def _mask_secrets(text: str | None) -> str:
     redacted = _HEX40_RE.sub("REDACTED_HEX40", redacted)
     return redacted
 
+
+def _result_status(result: dict | None) -> tuple[str, str | None]:
+    if not isinstance(result, dict):
+        return "success", None
+    rc = result.get("rc")
+    if rc is not None and rc != 0:
+        return "failed", result.get("error") or f"rc={rc}"
+    if result.get("ok") is False:
+        return "failed", result.get("error") or "ok=false"
+    for key, value in result.items():
+        if key.endswith("_error") and value:
+            return "failed", str(value)
+    return "success", None
+
+
+def _job_params(
+    *,
+    days: int | None,
+    start: str | None,
+    cursor: str | None,
+    max_new: int | None,
+    ticker: str | None,
+) -> dict:
+    return {
+        k: v
+        for k, v in {
+            "days": days,
+            "start": start,
+            "cursor": cursor,
+            "max_new": max_new,
+            "ticker": ticker,
+        }.items()
+        if v is not None
+    }
+
+
+def _json_dumps_masked(payload: object, max_chars: int = 8000) -> str:
+    raw = json.dumps(payload, ensure_ascii=False, default=str)
+    return _mask_secrets(raw)[:max_chars]
+
+
+async def _create_job_run(job_id: str, params: dict) -> AdminJobRun:
+    async with async_session() as db:
+        run = AdminJobRun(
+            job_id=job_id,
+            status="running",
+            triggered_by="admin_token",
+            params_json=_json_dumps_masked(params, max_chars=2000),
+        )
+        db.add(run)
+        await db.commit()
+        await db.refresh(run)
+        return run
+
+
+async def _finish_job_run(run_id: str, status_value: str, result: dict | None, error: str | None) -> None:
+    finished_aware = datetime.now(timezone.utc)
+    finished = finished_aware.replace(tzinfo=None)
+    async with async_session() as db:
+        run = await db.get(AdminJobRun, run_id)
+        if not run:
+            return
+        started = run.started_at.replace(tzinfo=timezone.utc) if run.started_at.tzinfo is None else run.started_at
+        run.status = status_value
+        run.finished_at = finished
+        run.elapsed_seconds = round((finished_aware - started).total_seconds(), 2)
+        run.result_json = _json_dumps_masked(result or {}, max_chars=8000)
+        run.error = _mask_secrets(error)[:2000] if error else None
+        await db.commit()
+
+
 router = APIRouter()
 
 
@@ -68,6 +143,18 @@ JOBS: dict[str, tuple[list[str] | str, str]] = {
     "scan_anomalies_bulk": (
         "inline",
         "severity=NULL 공시 일괄 스캔 (rule + LLM). 빈 배치 나올 때까지 반복, 최대 50회.",
+    ),
+    "backfill_disclosure_evidence": (
+        "inline",
+        "기존 severity 판정 공시에 누락된 판정 근거(disclosure_evidence)를 백필 (?max_new=N)",
+    ),
+    "backfill_missing_summaries": (
+        "inline",
+        "summary_ko가 비어 있는 공시에 보수적 한국어 요약 백필 (?max_new=N)",
+    ),
+    "quality_severity_eval": (
+        "inline",
+        "severity gold set 기준 rule classifier precision/recall/F1 평가",
     ),
     "sync_disclosures_all": (
         "inline",
@@ -443,6 +530,38 @@ async def list_jobs(x_admin_token: str | None = Header(default=None, alias="X-Ad
     return {jid: desc for jid, (_, desc) in JOBS.items()}
 
 
+@router.get("/runs")
+async def list_job_runs(
+    limit: int = 50,
+    x_admin_token: str | None = Header(default=None, alias="X-Admin-Token"),
+):
+    """최근 admin job 실행 이력."""
+    _require_token(x_admin_token)
+    limit = max(1, min(200, limit))
+    async with async_session() as db:
+        rows = (
+            await db.execute(
+                select(AdminJobRun).order_by(AdminJobRun.started_at.desc()).limit(limit)
+            )
+        ).scalars().all()
+    return {
+        "runs": [
+            {
+                "id": r.id,
+                "job": r.job_id,
+                "status": r.status,
+                "triggered_by": r.triggered_by,
+                "params": json.loads(r.params_json or "{}"),
+                "error": r.error,
+                "started_at": r.started_at.isoformat() if r.started_at else None,
+                "finished_at": r.finished_at.isoformat() if r.finished_at else None,
+                "elapsed_seconds": r.elapsed_seconds,
+            }
+            for r in rows
+        ]
+    }
+
+
 @router.post("/{job_id}")
 async def trigger_job(
     job_id: str,
@@ -469,56 +588,86 @@ async def trigger_job(
 
     argv, desc = JOBS[job_id]
     started_at = datetime.now(timezone.utc).isoformat()
+    run = await _create_job_run(
+        job_id,
+        _job_params(days=days, start=start, cursor=cursor, max_new=max_new, ticker=ticker),
+    )
 
-    if argv == "inline" and job_id == "daily_collection":
-        result = await _run_daily_collection()
-    elif argv == "inline" and job_id == "historical_backfill":
-        # ?days=N 쿼리로 윈도우 지정. 없으면 30일. 7-90 clamp.
-        d = max(7, min(90, days or 30))
-        result = await _run_historical_backfill(d)
-    elif argv == "inline" and job_id == "scan_anomalies_bulk":
-        result = await _run_scan_anomalies_bulk()
-    elif argv == "inline" and job_id == "sync_disclosures_all":
-        from app.services.graph.sync import sync_all_disclosures
-        result = await sync_all_disclosures()
-    elif argv == "inline" and job_id == "backfill_year_gaps":
-        # ?start=YYYY-MM-DD (default 2026-01-01), ?max_new=N (default 150, 0=무제한),
-        # ?cursor=YYYY-MM-DD (optional resume point).
-        mn = 150 if max_new is None else max(0, min(5000, max_new))
-        result = await _run_backfill_year_gaps(
-            start=start or "2026-01-01",
-            max_new=mn,
-            cursor=cursor,
-        )
-    elif argv == "inline" and job_id == "backfill_watchlist_governance":
-        # ?days=N 이면 선행 per-ticker DART backfill 포함 (0-365 clamp, 0=skip).
-        bd = max(0, min(365, days or 0))
-        result = await _run_backfill_watchlist_governance(backfill_days=bd)
-    elif argv == "inline" and job_id == "extract_governance_ticker":
-        if not ticker:
-            raise HTTPException(status_code=400, detail="ticker query param required")
-        from app.services.graph.extractor import extract_from_disclosures
-        result = await extract_from_disclosures(ticker)
-    elif argv == "inline" and job_id == "graph_ping":
-        result = await _run_graph_ping()
-    elif argv == "inline" and job_id == "extract_supply_chains":
-        from app.services.graph.supply_chain_extractor import extract_supply_chains
-        # 초기 bootstrap: 90일 / 최대 100건. 정기 운영 시엔 이 값을 줄일 것.
-        result = await extract_supply_chains(days_back=90, max_filings=100)
-    else:
-        assert isinstance(argv, list)
-        # `scan_earnings` / `scan_dividend_dates` / `scan_ex_dates_v2` 등 `--days N`
-        # 인자를 쓰는 subprocess 잡은 query ?days=N 로 override 가능 — 120일 급
-        # 일회성 backfill에 필요. 하드코딩된 기본값은 일상 cron용으로 유지.
-        if days is not None and "--days" in argv:
-            argv = list(argv)
-            idx = argv.index("--days")
-            argv[idx + 1] = str(max(1, min(365, days)))
-        result = await asyncio.to_thread(_run_subprocess_sync, argv, job_id)
+    try:
+        if argv == "inline" and job_id == "daily_collection":
+            result = await _run_daily_collection()
+        elif argv == "inline" and job_id == "historical_backfill":
+            # ?days=N 쿼리로 윈도우 지정. 없으면 30일. 7-90 clamp.
+            d = max(7, min(90, days or 30))
+            result = await _run_historical_backfill(d)
+        elif argv == "inline" and job_id == "scan_anomalies_bulk":
+            result = await _run_scan_anomalies_bulk()
+        elif argv == "inline" and job_id == "backfill_disclosure_evidence":
+            from app.services.anomaly.detector import backfill_missing_evidence
+            limit = 5000 if max_new is None else max(1, min(50000, max_new))
+            result = await backfill_missing_evidence(limit=limit)
+        elif argv == "inline" and job_id == "backfill_missing_summaries":
+            from app.services.anomaly.detector import backfill_missing_summaries
+            limit = 5000 if max_new is None else max(1, min(50000, max_new))
+            result = await backfill_missing_summaries(limit=limit)
+        elif argv == "inline" and job_id == "quality_severity_eval":
+            from app.services.quality.severity_eval import evaluate_default_gold
+            result = evaluate_default_gold()
+        elif argv == "inline" and job_id == "sync_disclosures_all":
+            from app.services.graph.sync import sync_all_disclosures
+            result = await sync_all_disclosures()
+        elif argv == "inline" and job_id == "backfill_year_gaps":
+            # ?start=YYYY-MM-DD (default 2026-01-01), ?max_new=N (default 150, 0=무제한),
+            # ?cursor=YYYY-MM-DD (optional resume point).
+            mn = 150 if max_new is None else max(0, min(5000, max_new))
+            result = await _run_backfill_year_gaps(
+                start=start or "2026-01-01",
+                max_new=mn,
+                cursor=cursor,
+            )
+        elif argv == "inline" and job_id == "backfill_watchlist_governance":
+            # ?days=N 이면 선행 per-ticker DART backfill 포함 (0-365 clamp, 0=skip).
+            bd = max(0, min(365, days or 0))
+            result = await _run_backfill_watchlist_governance(backfill_days=bd)
+        elif argv == "inline" and job_id == "extract_governance_ticker":
+            if not ticker:
+                raise HTTPException(status_code=400, detail="ticker query param required")
+            from app.services.graph.extractor import extract_from_disclosures
+            result = await extract_from_disclosures(ticker)
+        elif argv == "inline" and job_id == "graph_ping":
+            result = await _run_graph_ping()
+        elif argv == "inline" and job_id == "extract_supply_chains":
+            from app.services.graph.supply_chain_extractor import extract_supply_chains
+            # 초기 bootstrap: 90일 / 최대 100건. 정기 운영 시엔 이 값을 줄일 것.
+            result = await extract_supply_chains(days_back=90, max_filings=100)
+        else:
+            assert isinstance(argv, list)
+            # `scan_earnings` / `scan_dividend_dates` / `scan_ex_dates_v2` 등 `--days N`
+            # 인자를 쓰는 subprocess 잡은 query ?days=N 로 override 가능 — 120일 급
+            # 일회성 backfill에 필요. 하드코딩된 기본값은 일상 cron용으로 유지.
+            if days is not None and "--days" in argv:
+                argv = list(argv)
+                idx = argv.index("--days")
+                argv[idx + 1] = str(max(1, min(365, days)))
+            result = await asyncio.to_thread(_run_subprocess_sync, argv, job_id)
+    except HTTPException as e:
+        await _finish_job_run(run.id, "failed", None, str(e.detail))
+        raise
+    except asyncio.CancelledError:
+        await _finish_job_run(run.id, "cancelled", None, "request cancelled")
+        raise
+    except Exception as e:
+        err = f"{type(e).__name__}: {e}"
+        await _finish_job_run(run.id, "failed", None, err)
+        raise
+
+    status_value, error = _result_status(result if isinstance(result, dict) else None)
+    await _finish_job_run(run.id, status_value, result if isinstance(result, dict) else {"value": result}, error)
 
     return {
         "job": job_id,
         "description": desc,
+        "run_id": run.id,
         "started_at": started_at,
         "result": result,
     }

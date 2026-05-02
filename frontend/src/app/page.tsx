@@ -21,15 +21,14 @@ export default function Home() {
           className="mt-6 sm:mt-8 font-serif leading-[1.08] tracking-[-0.02em]"
           style={{ fontSize: "clamp(40px, 8vw, 72px)" }}
         >
-          한국 주식,
+          내 종목 공시,
           <br />
-          <span className="text-fg-2">진지한 리서치로.</span>
+          <span className="text-fg-2">놓치지 않게.</span>
         </h1>
 
         <p className="mt-8 sm:mt-10 text-[15px] sm:text-[17px] leading-[1.7] text-fg-2">
-          DART 공시를 AI가 한국어로 요약하고, 이상 공시를 플래그하며,
-          GraphRAG로 공급망·경쟁사·인사이더를 이어 붙입니다.
-          네이버 증권을 두 세대 앞서, 광고 없이.
+          관심종목의 DART 공시를 AI가 한국어로 요약하고, 유상증자·전환사채·최대주주 변경 같은
+          위험 신호를 먼저 띄웁니다. 필요하면 DD 메모와 Ask로 근거까지 파고듭니다.
         </p>
 
         <HomeSearch />
@@ -39,10 +38,16 @@ export default function Home() {
 
         <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 text-[13px] sm:text-[14px]">
           <a
-            href="/ask"
+            href="/watchlist"
             className="mono border-b border-accent text-accent hover:bg-accent-dim hover:text-fg px-1 py-0.5 transition-colors"
           >
-            try ask →
+            관심종목 추가 →
+          </a>
+          <a
+            href="/events"
+            className="mono border-b border-border text-fg-2 hover:border-accent hover:text-accent px-1 py-0.5 transition-colors"
+          >
+            이상공시 큐 →
           </a>
           <span className="text-fg-3 mono">MIT · BYOK · self-hostable</span>
         </div>
@@ -64,15 +69,17 @@ export default function Home() {
               style={{ fontSize: "clamp(28px, 5vw, 40px)" }}
             >
               공시는 <span className="text-fg-2">원재료</span>,<br />
-              문제는 <span className="text-fg-2">해석</span>.
+              문제는 <span className="text-fg-2">우선순위</span>.
             </h2>
           </div>
           <div className="space-y-6 pt-2 sm:pt-4">
             <p className="text-[15px] sm:text-[16px] leading-[1.75] text-fg-2">
-              DART에는 연 100만건의 공시가 오른다. 대부분은 루틴이지만, 그 사이 상장폐지·감사거절·최대주주변경처럼 투자자를 직격할 신호가 섞여 있다.
+              DART에는 연 100만건의 공시가 오른다. 개인 투자자가 매일 원문을 전부 읽기는 어렵지만,
+              상장폐지·감사거절·희석·최대주주변경 같은 신호는 늦게 보면 비싸다.
             </p>
             <p className="text-[15px] sm:text-[16px] leading-[1.75] text-fg-2">
-              The Gongsi는 규칙(11개 키워드)으로 1차 필터, AI로 심각도를 판정합니다. &ldquo;HBM 공급망 중 이상 공시&rdquo; 같은 다단계 질의를 자연어로 풉니다.
+              The Gongsi는 관심종목을 기준으로 먼저 걸러주고, 이상 공시는 리뷰 큐와 DD 메모로
+              이어줍니다. Ask는 더 깊게 파고드는 파워 기능입니다.
             </p>
             <p className="mono text-[11px] sm:text-[12px] text-fg-3 uppercase tracking-[0.18em] pt-2">
               참고
@@ -87,9 +94,9 @@ export default function Home() {
 
       <section className="border-t border-border/50">
         <div className="mx-auto max-w-[1080px] px-6 sm:px-8 py-16 sm:py-20 grid grid-cols-1 md:grid-cols-3 gap-10 sm:gap-12">
-          <Feature label="DART 공시" value="전수 수집 · 한국어 요약 · 심각도 플래그" />
+          <Feature label="관심종목 레이더" value="내 종목 공시 · 이상 신호 · 리뷰 큐" />
+          <Feature label="DD 메모" value="bull / bear / thesis · 원문 근거" />
           <Feature label="Ask" value="자연어 질의 · 그래프 + 공시 hybrid" />
-          <Feature label="DD 메모" value="bull / bear / thesis · 버전 히스토리" />
         </div>
       </section>
 

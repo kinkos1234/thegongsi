@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field, field_validator
 import bcrypt as _bcrypt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,18 +13,32 @@ from app.config import settings
 from app.database import get_db
 from app.models.tables import User
 from app.routers import get_current_user
+from app.services.organizations import ensure_personal_organization
 
 router = APIRouter()
 
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-class RegisterRequest(BaseModel):
-    email: EmailStr
+
+class EmailPasswordRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    password: str
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        email = value.strip().lower()
+        if not EMAIL_RE.match(email):
+            raise ValueError("이메일 형식이 올바르지 않습니다.")
+        return email
+
+
+class RegisterRequest(EmailPasswordRequest):
     password: str = Field(min_length=8, max_length=72)  # bcrypt 72-byte 상한
     name: str = Field(min_length=1, max_length=100)
 
 
-class LoginRequest(BaseModel):
-    email: EmailStr
+class LoginRequest(EmailPasswordRequest):
     password: str
 
 
@@ -60,13 +75,15 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         name=req.name,
     )
     db.add(user)
+    await db.flush()
+    org = await ensure_personal_organization(db, user)
     await db.commit()
     await db.refresh(user)
 
     token = _create_jwt(user.id)
     return AuthResponse(
         token=token,
-        user={"id": user.id, "email": user.email, "name": user.name},
+        user={"id": user.id, "email": user.email, "name": user.name, "organization_id": org.id},
     )
 
 
@@ -81,7 +98,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     token = _create_jwt(user.id)
     return AuthResponse(
         token=token,
-        user={"id": user.id, "email": user.email, "name": user.name},
+        user={"id": user.id, "email": user.email, "name": user.name, "organization_id": user.default_organization_id},
     )
 
 

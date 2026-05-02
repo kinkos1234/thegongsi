@@ -11,7 +11,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, Float, Integer, String, Text, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models._base import Base, gen_id
+from app.models._base import Base, gen_id, utc_now
 
 
 class MajorShareholder(Base):
@@ -37,7 +37,7 @@ class MajorShareholder(Base):
     as_of: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD
     source_rcept_no: Mapped[str | None] = mapped_column(String(20), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
 class Insider(Base):
@@ -63,7 +63,7 @@ class Insider(Base):
     as_of: Mapped[str] = mapped_column(String(10), index=True)
     source_rcept_no: Mapped[str | None] = mapped_column(String(20), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
 class GovernanceExtractRequest(Base):
@@ -90,7 +90,7 @@ class GovernanceExtractRequest(Base):
     # 'processing' → extract 진행 중, 'done' → 성공, 'no_data' → governance 공시 없음,
     # 'failed' → 예외 발생, 'cooldown'/'ip_limit' → 실행 없이 거절됨
     status: Mapped[str] = mapped_column(String(16))
-    requested_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    requested_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     requester_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
     user_id: Mapped[str | None] = mapped_column(String(12), nullable=True)
@@ -123,4 +123,4 @@ class CorporateOwnership(Base):
     stake_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     as_of: Mapped[str] = mapped_column(String(10), index=True)
     source_rcept_no: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)

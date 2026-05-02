@@ -8,6 +8,8 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 
 
 async def init_db():
+    if not settings.auto_create_tables:
+        return
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

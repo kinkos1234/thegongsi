@@ -14,7 +14,7 @@ type EarningsRow = {
   net_profit: number | null;
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888";
 
 // 백만원 단위 값을 사람 읽기 편한 표기로 (조·억). null/0 은 원문 유지.
 function formatKRW(mmWon: number | null): string {
@@ -33,9 +33,7 @@ export function RecentEarnings({ limit = 5 }: { limit?: number }) {
     fetch(`${API}/api/earnings/?upcoming=false`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((all: EarningsRow[]) => {
-        // 매출 기준 내림차순. revenue null은 뒤로.
-        const sorted = [...all].sort((a, b) => (b.revenue ?? -1) - (a.revenue ?? -1));
-        setRows(sorted.slice(0, limit));
+        setRows(all.slice(0, limit));
       })
       .catch((e) => setErr(String(e)));
   }, [limit]);

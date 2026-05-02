@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models._base import Base, gen_id
+from app.models._base import Base, gen_id, utc_now
 
 
 class Company(Base):
@@ -19,7 +19,7 @@ class Company(Base):
     market: Mapped[str] = mapped_column(String(20))
     current_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     change_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
 class FinancialSnapshot(Base):
@@ -34,7 +34,7 @@ class FinancialSnapshot(Base):
     bps: Mapped[float | None] = mapped_column(Float, nullable=True)
     dividend_yield: Mapped[float | None] = mapped_column(Float, nullable=True)
     market_cap: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
 class ShortSellingSnapshot(Base):
@@ -46,4 +46,4 @@ class ShortSellingSnapshot(Base):
     volume: Mapped[int | None] = mapped_column(Integer, nullable=True)
     value: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
-    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)

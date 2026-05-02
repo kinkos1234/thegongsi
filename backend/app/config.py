@@ -1,7 +1,10 @@
 from pydantic_settings import BaseSettings
+from pydantic_settings import SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
     database_url: str = "sqlite+aiosqlite:///./comad_stock.db"
     dart_api_key: str = ""
     anthropic_api_key: str = ""
@@ -14,6 +17,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_hours: int = 72
     field_encryption_key: str = ""  # Fernet 키 (base64). 없으면 BYOK 저장 불가
+    # 개발/테스트 편의용. 운영에서는 false로 두고 `alembic upgrade head`로 스키마를 관리.
+    auto_create_tables: bool = True
     # BYOK 미설정 사용자가 서버 키로 호출 가능한 일일 한도 (0=무제한)
     server_key_daily_limit_memo: int = 3
     server_key_daily_limit_ask: int = 20
@@ -33,9 +38,6 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
-
-    class Config:
-        env_file = ".env"
 
 
 settings = Settings()

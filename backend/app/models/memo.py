@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models._base import Base, gen_id
+from app.models._base import Base, gen_id, utc_now
 
 
 class DDMemo(Base):
@@ -16,7 +16,7 @@ class DDMemo(Base):
     )
     ticker: Mapped[str] = mapped_column(String(10), index=True)
     latest_version_id: Mapped[str | None] = mapped_column(String(12), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     versions: Mapped[list["DDMemoVersion"]] = relationship(
         back_populates="memo",
@@ -36,6 +36,6 @@ class DDMemoVersion(Base):
     thesis: Mapped[str] = mapped_column(Text)
     sources: Mapped[str] = mapped_column(Text)
     generated_by: Mapped[str] = mapped_column(String(200))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     memo: Mapped["DDMemo"] = relationship(back_populates="versions")

@@ -53,6 +53,7 @@ on:
           - seed_supply_chains
           - extract_supply_chains
           - graph_ping
+          - backfill_missing_summaries
           - historical_backfill_30
           - historical_backfill_90
           - backfill_year_gaps

@@ -1,12 +1,33 @@
 """DART 공시 라우터."""
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.tables import Disclosure
+from app.models.tables import Disclosure, DisclosureEvidence
 
 router = APIRouter()
+
+
+def _evidence_payload(rows: list[DisclosureEvidence]) -> list[dict]:
+    payload = []
+    for row in rows:
+        try:
+            items = json.loads(row.evidence_json or "[]")
+        except json.JSONDecodeError:
+            items = []
+        payload.append({
+            "kind": row.kind,
+            "method": row.method,
+            "model": row.model,
+            "prompt_version": row.prompt_version,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            "items": items if isinstance(items, list) else [],
+        })
+    return payload
 
 
 @router.get("/")
@@ -62,6 +83,24 @@ async def list_disclosures(
     ]
 
 
+@router.get("/{rcept_no}/evidence")
+async def disclosure_evidence(rcept_no: str, db: AsyncSession = Depends(get_db)):
+    """공시별 판정/요약 근거 조회."""
+    res = await db.execute(select(Disclosure).where(Disclosure.rcept_no == rcept_no))
+    disclosure = res.scalar_one_or_none()
+    if not disclosure:
+        raise HTTPException(status_code=404, detail="없는 공시입니다.")
+    evidence_res = await db.execute(
+        select(DisclosureEvidence)
+        .where(DisclosureEvidence.rcept_no == rcept_no)
+        .order_by(DisclosureEvidence.kind.asc())
+    )
+    return {
+        "rcept_no": rcept_no,
+        "evidence": _evidence_payload(evidence_res.scalars().all()),
+    }
+
+
 @router.get("/{rcept_no}/preview")
 async def disclosure_preview(rcept_no: str, db: AsyncSession = Depends(get_db)):
     """공시 문서 핵심 필드 미리보기 — OpenDART document.xml 파싱.
@@ -73,6 +112,13 @@ async def disclosure_preview(rcept_no: str, db: AsyncSession = Depends(get_db)):
     disclosure = res.scalar_one_or_none()
     if not disclosure:
         raise HTTPException(status_code=404, detail="없는 공시입니다.")
+
+    evidence_res = await db.execute(
+        select(DisclosureEvidence)
+        .where(DisclosureEvidence.rcept_no == rcept_no)
+        .order_by(DisclosureEvidence.kind.asc())
+    )
+    evidence = _evidence_payload(evidence_res.scalars().all())
 
     import asyncio as _asyncio
     import io
@@ -122,6 +168,7 @@ async def disclosure_preview(rcept_no: str, db: AsyncSession = Depends(get_db)):
         "summary_ko": disclosure.summary_ko,
         "fields": fields,
         "dart_url": disclosure.raw_url,
+        "evidence": evidence,
     }
 
 

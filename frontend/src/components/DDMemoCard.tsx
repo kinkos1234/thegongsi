@@ -56,6 +56,9 @@ function addBreathingRoom(text: string): string {
 }
 
 export function DDMemoCard({ memo }: { memo: DDMemo }) {
+  const disclosures = memo.sources?.disclosures ?? [];
+  const model = memo.generated_by?.split("|")[0] ?? null;
+
   return (
     <article className="border-t border-b border-border/50 py-8">
       <header className="flex items-baseline justify-between mb-6">
@@ -79,6 +82,30 @@ export function DDMemoCard({ memo }: { memo: DDMemo }) {
       <p className="mt-8 text-[12px] italic text-fg-3">
         — 본 메모는 AI가 공시·뉴스만을 근거로 생성한 정보로, 투자자문이 아닙니다.
       </p>
+      {(disclosures.length > 0 || model) && (
+        <section className="mt-5 border-t border-border/40 pt-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mono text-[11px] text-fg-3">
+            {model && <span>model {model}</span>}
+            {memo.created_at && <span>generated {memo.created_at.slice(0, 10)}</span>}
+            {disclosures.length > 0 && <span>evidence {disclosures.length} filings</span>}
+          </div>
+          {disclosures.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {disclosures.slice(0, 8).map((s) => (
+                <a
+                  key={s.rcept_no}
+                  href={s.dart_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mono text-[11px] text-fg-3 border border-border/60 px-2 py-1 hover:text-accent hover:border-accent/60"
+                >
+                  {s.rcept_no.slice(0, 8)}…
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </article>
   );
 }

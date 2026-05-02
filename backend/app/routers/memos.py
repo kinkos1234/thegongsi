@@ -1,4 +1,6 @@
 """AI DD 메모 라우터."""
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -44,6 +46,23 @@ async def get_latest_memo(ticker: str, db: AsyncSession = Depends(get_db)):
     ver = ver_res.scalar_one_or_none()
     if not ver:
         raise HTTPException(status_code=404, detail="메모 버전을 찾을 수 없습니다.")
+    try:
+        sources = json.loads(ver.sources or "[]")
+    except json.JSONDecodeError:
+        sources = []
+    disclosure_sources = [
+        {
+            "rcept_no": s.get("rcept_no"),
+            "dart_url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={s.get('rcept_no')}",
+        }
+        for s in sources
+        if isinstance(s, dict) and s.get("type") == "disclosure" and s.get("rcept_no")
+    ]
+    news_sources = [
+        {"url": s.get("url")}
+        for s in sources
+        if isinstance(s, dict) and s.get("type") == "news" and s.get("url")
+    ]
     return {
         "memo_id": memo.id,
         "version_id": ver.id,
@@ -51,4 +70,10 @@ async def get_latest_memo(ticker: str, db: AsyncSession = Depends(get_db)):
         "bull": ver.bull,
         "bear": ver.bear,
         "thesis": ver.thesis,
+        "sources": {
+            "disclosures": disclosure_sources,
+            "news": news_sources,
+        },
+        "generated_by": ver.generated_by,
+        "created_at": ver.created_at.isoformat() if ver.created_at else None,
     }

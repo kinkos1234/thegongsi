@@ -6,7 +6,7 @@
 - cooldown: 같은 ticker 1시간 내 재요청
 - ip_limit: 시간당 3회 초과
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -16,6 +16,10 @@ from app.models.tables import (
     GovernanceExtractRequest,
     MajorShareholder,
 )
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 async def _seed_company(ticker: str = "005930"):
@@ -56,7 +60,7 @@ async def test_extract_cooldown(client):
     async with async_session() as db:
         db.add(GovernanceExtractRequest(
             ticker="005930", status="processing",
-            requested_at=datetime.utcnow() - timedelta(minutes=5),
+            requested_at=_utc_now() - timedelta(minutes=5),
             requester_ip="1.2.3.4",
         ))
         await db.commit()
@@ -76,16 +80,16 @@ async def test_extract_ip_limit(client):
         for t in ("005930", "000660", "035420"):
             db.add(GovernanceExtractRequest(
                 ticker=t, status="done",
-                requested_at=datetime.utcnow() - timedelta(hours=2),  # 쿨다운은 지남
-                finished_at=datetime.utcnow() - timedelta(hours=2),
+                requested_at=_utc_now() - timedelta(hours=2),  # 쿨다운은 지남
+                finished_at=_utc_now() - timedelta(hours=2),
                 requester_ip="9.9.9.9",
             ))
         # hour window 안에는 3건 배치
         for t in ("005930", "000660", "035420"):
             db.add(GovernanceExtractRequest(
                 ticker=t, status="done",
-                requested_at=datetime.utcnow() - timedelta(minutes=30),
-                finished_at=datetime.utcnow() - timedelta(minutes=29),
+                requested_at=_utc_now() - timedelta(minutes=30),
+                finished_at=_utc_now() - timedelta(minutes=29),
                 requester_ip="9.9.9.9",
             ))
         await db.commit()

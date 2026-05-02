@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { EmptyState } from "@/components/Skeleton";
 import { LoginGate } from "@/components/LoginGate";
+import { WatchlistBrief } from "@/components/WatchlistBrief";
 
 type Item = { ticker: string; name: string | null; market: string | null; added_at: string };
 
@@ -133,6 +134,7 @@ export default function WatchlistPage() {
   return (
     <main className="mx-auto max-w-[720px] px-8 py-20">
       <h1 className="font-serif text-[40px] leading-none tracking-[-0.01em]">관심 종목</h1>
+      <WatchlistBrief token={token} />
 
       <form onSubmit={add} className="mt-10 space-y-3">
         <div className="flex gap-3">

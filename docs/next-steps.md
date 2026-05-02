@@ -2,7 +2,7 @@
 
 ## 확정됨
 
-- 포지션: DART-native AI 주식 리서치 터미널, OSS, 한국어 우선 ([positioning.md](positioning.md))
+- 포지션: 진지한 한국 개인투자자용 DART 공시 레이더, OSS, 한국어 우선 ([positioning.md](positioning.md), [RETAIL_FOCUS.md](RETAIL_FOCUS.md))
 - 이름: `comad-stock` (확정)
 - MVP 스코프: KOSPI 200 우선, 이후 코스닥·해외 확장
 - 구조: comad-world 독립 자매 레포

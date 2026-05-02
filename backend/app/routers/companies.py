@@ -1,6 +1,6 @@
 """종목 대시보드 라우터."""
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func, or_, select
@@ -20,6 +20,10 @@ from app.models.tables import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 @router.get("/")
@@ -99,6 +103,7 @@ async def related_companies(
 
     peers: list[dict] = []
     used_tickers: set[str] = {ticker}
+    used_names: set[str] = {center.name_ko.strip().lower()}
 
     # 1) 부모 (parent: 이 회사 주식을 보유한 법인)
     parents_res = await db.execute(
@@ -112,6 +117,11 @@ async def related_companies(
             continue
         used_tickers.add(p.parent_ticker)
         peer = await _fetch_peer(db, p.parent_ticker, fallback_name=p.parent_name)
+        peer_name = str(peer.get("name") or "").strip().lower()
+        if peer_name and peer_name in used_names:
+            continue
+        if peer_name:
+            used_names.add(peer_name)
         peer["relation"] = "parent"
         peer["stake_pct"] = p.stake_pct
         peer["direction"] = "in"
@@ -132,6 +142,11 @@ async def related_companies(
                 continue
             used_tickers.add(c.child_ticker)
             peer = await _fetch_peer(db, c.child_ticker, fallback_name=c.child_name)
+            peer_name = str(peer.get("name") or "").strip().lower()
+            if peer_name and peer_name in used_names:
+                continue
+            if peer_name:
+                used_names.add(peer_name)
             peer["relation"] = "child"
             peer["stake_pct"] = c.stake_pct
             peer["direction"] = "out"
@@ -150,7 +165,11 @@ async def related_companies(
         for co in sector_res.scalars().all():
             if co.ticker in used_tickers:
                 continue
+            peer_name = co.name_ko.strip().lower()
+            if peer_name in used_names:
+                continue
             used_tickers.add(co.ticker)
+            used_names.add(peer_name)
             peer = _company_brief(co)
             peer["relation"] = "sector"
             peers.append(peer)
@@ -332,7 +351,7 @@ async def extract_governance_on_demand(
         return {"status": "already_extracted", "ticker": ticker}
 
     ip = _client_ip(request)
-    now = datetime.utcnow()
+    now = _utc_now()
 
     # 1) ticker 쿨다운
     last_ticker_r = await db.execute(
@@ -401,7 +420,7 @@ async def extract_governance_on_demand(
             "done" if st == "ok" else st
         )
         req.status = norm
-        req.finished_at = datetime.utcnow()
+        req.finished_at = _utc_now()
         req.result_summary = (
             f"persons={result.get('persons_upserted', 0)} "
             f"corps={result.get('corps_upserted', 0)}"
@@ -411,7 +430,7 @@ async def extract_governance_on_demand(
     except Exception as e:
         logger.exception("on-demand governance extract failed for %s", ticker)
         req.status = "failed"
-        req.finished_at = datetime.utcnow()
+        req.finished_at = _utc_now()
         req.error = f"{type(e).__name__}: {e}"[:500]
         await db.commit()
         raise HTTPException(status_code=500, detail=f"추출 실패: {e}")

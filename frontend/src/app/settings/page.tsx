@@ -17,6 +17,27 @@ type Status = {
   is_admin: boolean;
   server_fallback_usage: Usage;
 };
+type OrgMember = {
+  user_id: string;
+  role: string;
+  created_at: string | null;
+};
+type OrgInvite = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  token: string | null;
+  created_at: string | null;
+  accepted_at: string | null;
+};
+type Organization = {
+  id: string;
+  name: string;
+  slug: string;
+  created_at: string | null;
+  members: OrgMember[];
+};
 
 export default function SettingsPage() {
   const [token, setToken] = useState<string | null>(null);
@@ -230,6 +251,8 @@ export default function SettingsPage() {
         {err && <p className="text-[13px] text-sev-high">⚠ {err}</p>}
       </form>
 
+      <OrganizationSection token={token} />
+
       <section className="mt-20 border-t border-border/50 pt-10">
         <p className="mono text-[12px] text-fg-3 uppercase tracking-wider">DISPLAY</p>
         <h2 className="mt-2 font-serif text-[28px] leading-[1.15]">표시 설정</h2>
@@ -243,6 +266,159 @@ export default function SettingsPage() {
 
       <AlertsSection token={token} />
     </main>
+  );
+}
+
+function OrganizationSection({ token }: { token: string }) {
+  const [org, setOrg] = useState<Organization | null>(null);
+  const [invites, setInvites] = useState<OrgInvite[]>([]);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"admin" | "analyst" | "viewer">("analyst");
+  const [latestToken, setLatestToken] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function loadOrg(): Promise<boolean> {
+    try {
+      const r = await fetch(`${API}/api/orgs/me`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error(`조직 정보 로드 실패 (HTTP ${r.status})`);
+      setOrg(await r.json());
+      return true;
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "조직 정보를 불러오지 못했습니다.");
+      return false;
+    }
+  }
+
+  async function loadInvites(): Promise<boolean> {
+    try {
+      const r = await fetch(`${API}/api/orgs/invitations`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error(`초대 목록 로드 실패 (HTTP ${r.status})`);
+      setInvites((await r.json()).invitations ?? []);
+      return true;
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "초대 목록을 불러오지 못했습니다.");
+      return false;
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadOrganizationState() {
+      const ok = await loadOrg();
+      if (ok && !cancelled) {
+        await loadInvites();
+      }
+    }
+    void loadOrganizationState();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  async function invite(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    setLatestToken(null);
+    setSaving(true);
+    try {
+      const r = await fetch(`${API}/api/orgs/invitations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email: email.trim(), role }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.detail || `HTTP ${r.status}`);
+      }
+      const data = await r.json();
+      setLatestToken(data.token);
+      setEmail("");
+      await loadInvites();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "초대 생성 실패");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inviteUrl = latestToken && typeof window !== "undefined"
+    ? `${window.location.origin}/invite?token=${encodeURIComponent(latestToken)}`
+    : null;
+
+  return (
+    <section className="mt-20 border-t border-border/50 pt-10">
+      <p className="mono text-[12px] text-fg-3 uppercase tracking-wider">ORGANIZATION</p>
+      <h2 className="mt-2 font-serif text-[28px] leading-[1.15]">팀 워크스페이스</h2>
+
+      {org && (
+        <div className="mt-6 border border-border/50 bg-bg-2/40 p-4">
+          <p className="text-[15px] text-fg">{org.name}</p>
+          <p className="mono mt-1 text-[11px] text-fg-3">org={org.id} · {org.slug}</p>
+          <div className="mt-5 border-t border-border/40">
+            {org.members.map((m) => (
+              <div key={m.user_id} className="flex items-center justify-between border-b border-border/40 py-2 gap-4">
+                <span className="mono text-[12px] text-fg-2 truncate">{m.user_id}</span>
+                <span className="mono text-[11px] text-fg-3 uppercase">{m.role}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <form onSubmit={invite} className="mt-8 space-y-3">
+        <div className="flex flex-wrap gap-3">
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="초대할 이메일"
+            type="email"
+            className="flex-1 min-w-[240px] bg-bg-2 border border-border px-3 py-2 text-[13px] focus:border-accent focus:outline-none"
+          />
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as typeof role)}
+            className="bg-bg-2 border border-border px-3 py-2 mono text-[13px] focus:border-accent focus:outline-none"
+          >
+            <option value="analyst">Analyst</option>
+            <option value="viewer">Viewer</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button
+            type="submit"
+            disabled={saving || email.trim().length < 5}
+            className="mono text-[13px] text-accent border border-accent px-4 py-2 hover:bg-accent-dim transition-colors disabled:opacity-40"
+          >
+            {saving ? "creating…" : "invite"}
+          </button>
+        </div>
+        {err && <p className="text-[13px] text-sev-high">⚠ {err}</p>}
+        {inviteUrl && (
+          <div className="border border-accent/40 bg-accent-dim/20 px-3 py-2">
+            <p className="mono text-[11px] text-accent uppercase tracking-wider">Invite link</p>
+            <p className="mono mt-1 text-[12px] text-fg-2 break-all">{inviteUrl}</p>
+          </div>
+        )}
+      </form>
+
+      <ul className="mt-8 border-t border-border/40">
+        {invites.length === 0 && (
+          <li className="py-5 text-[13px] text-fg-3">대기 중인 초대 없음</li>
+        )}
+        {invites.map((invite) => (
+          <li key={invite.id} className="flex items-center justify-between border-b border-border/40 py-3 gap-4">
+            <div className="min-w-0">
+              <p className="text-[13px] text-fg truncate">{invite.email}</p>
+              <p className="mono mt-1 text-[11px] text-fg-3 uppercase">
+                {invite.role} · {invite.status}
+              </p>
+            </div>
+            {invite.token && <span className="mono text-[11px] text-fg-3 truncate max-w-[180px]">{invite.token}</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -31,11 +31,33 @@ backend/
 ```bash
 pip install -r requirements.txt
 cp .env.example .env
-# DART_API_KEY 등 설정
+# DART_API_KEY, JWT_SECRET_KEY, ADMIN_JOBS_TOKEN 등 설정
 python -m uvicorn app.main:app --reload --port 8888
 ```
 
 Swagger: http://localhost:8888/docs
+
+## DB 마이그레이션
+
+로컬 개발은 기본값 `AUTO_CREATE_TABLES=true`라 앱 시작 시 누락 테이블을 자동 생성합니다.
+기존 SQLite DB를 쓰고 있다면 새 컬럼은 자동 추가되지 않으므로, 서버 실행 전 한 번 마이그레이션을 적용하세요.
+운영은 `AUTO_CREATE_TABLES=false`로 두고 Alembic만으로 스키마를 변경합니다.
+
+```bash
+alembic upgrade head
+alembic current
+```
+
+Fly 배포는 `fly.toml`의 `release_command = "alembic upgrade head"`가 먼저 실행됩니다.
+
+## 테스트
+
+여러 Python이 설치된 로컬에서는 `pytest` 실행 파일과 `python` 인터프리터가 달라질 수 있습니다.
+의존성이 설치된 인터프리터를 확실히 쓰도록 아래처럼 실행하세요.
+
+```bash
+python -m pytest -q
+```
 
 ## 스케줄러
 

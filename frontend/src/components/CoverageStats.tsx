@@ -26,10 +26,14 @@ export function CoverageStats() {
 
   useEffect(() => {
     const ctl = new AbortController();
+    setErr(false);
     fetch(`${API}/api/stats/coverage`, { signal: ctl.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then(setStats)
-      .catch(() => setErr(true));
+      .catch((e) => {
+        if (ctl.signal.aborted || (e instanceof DOMException && e.name === "AbortError")) return;
+        setErr(true);
+      });
     return () => ctl.abort();
   }, []);
 

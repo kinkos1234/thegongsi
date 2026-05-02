@@ -30,7 +30,7 @@ const CATEGORY_ORDER = [
   "listing_date",
 ];
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888";
 const dartUrl = (rcept_no: string) =>
   `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${rcept_no}`;
 

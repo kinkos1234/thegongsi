@@ -24,15 +24,20 @@ function isoWeek(d: Date): { year: number; week: number } {
 }
 
 function kstNow(): { date: string; time: string } {
-  const now = new Date();
-  const kstMs = now.getTime() + 9 * 3600 * 1000 - now.getTimezoneOffset() * 60 * 1000;
-  const k = new Date(kstMs);
-  const y = k.getUTCFullYear();
-  const m = String(k.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(k.getUTCDate()).padStart(2, "0");
-  const hh = String(k.getUTCHours()).padStart(2, "0");
-  const mm = String(k.getUTCMinutes()).padStart(2, "0");
-  return { date: `${y}-${m}-${d}`, time: `${hh}:${mm}` };
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  return {
+    date: `${part("year")}-${part("month")}-${part("day")}`,
+    time: `${part("hour")}:${part("minute")}`,
+  };
 }
 
 /** 정기간행물 스타일 얇은 바 — Financial Times / NYT 마스트헤드 오마주.
@@ -41,9 +46,10 @@ function kstNow(): { date: string; time: string } {
  */
 export function EditorialMasthead() {
   const [coverage, setCoverage] = useState<Coverage | null>(null);
-  const [now, setNow] = useState(() => kstNow());
+  const [now, setNow] = useState<{ date: string; time: string } | null>(null);
 
   useEffect(() => {
+    setNow(kstNow());
     // 1분마다 시계 갱신
     const tick = setInterval(() => setNow(kstNow()), 60_000);
     return () => clearInterval(tick);
@@ -54,7 +60,9 @@ export function EditorialMasthead() {
     fetch(`${API}/api/stats/coverage`, { signal: ctl.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then(setCoverage)
-      .catch(() => {});
+      .catch((e) => {
+        if (ctl.signal.aborted || (e instanceof DOMException && e.name === "AbortError")) return;
+      });
     return () => ctl.abort();
   }, []);
 
@@ -67,8 +75,8 @@ export function EditorialMasthead() {
       <div className="mx-auto max-w-[1280px] px-6 sm:px-8 py-2 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 text-[11px]">
         <div className="flex items-center gap-4">
           <span className="mono text-fg-2 tracking-[0.15em]">{weekLabel}</span>
-          <span className="mono text-fg-3 tracking-wider hidden sm:inline">
-            KST {now.date} {now.time}
+          <span className="mono text-fg-3 tracking-wider hidden sm:inline" suppressHydrationWarning>
+            {now ? `KST ${now.date} ${now.time}` : "KST --:--"}
           </span>
         </div>
         <div className="mono text-fg-3 tracking-wider flex items-center gap-4">

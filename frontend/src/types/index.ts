@@ -37,4 +37,10 @@ export type DDMemo = {
   bull: string;
   bear: string;
   thesis: string;
+  sources?: {
+    disclosures?: { rcept_no: string; dart_url: string }[];
+    news?: { url: string }[];
+  };
+  generated_by?: string | null;
+  created_at?: string | null;
 };

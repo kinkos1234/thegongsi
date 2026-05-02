@@ -9,15 +9,15 @@
 [![Live](https://img.shields.io/badge/live-thegongsi.vercel.app-brightgreen)](https://thegongsi.vercel.app)
 
 > **TL;DR (English)**
-> Korean listed companies file ~1M disclosures per year on DART (the national electronic filing system, like SEC EDGAR). **95% is routine noise; 5% flips investment theses** — going-concern doubt, insider trades, equity dilution, major-shareholder changes. **The Gongsi** auto-summarizes every filing in Korean, rule-flags anomalies, and answers natural-language supply-chain questions via GraphRAG (Cypher over Neo4j + Claude multi-tool). Self-hostable with BYOK. For DIY investors and EM-Asia desks at global funds.
+> Korean listed companies file ~1M disclosures per year on DART (the national electronic filing system, like SEC EDGAR). **95% is routine noise; 5% flips investment theses** — going-concern doubt, insider trades, equity dilution, major-shareholder changes. **The Gongsi** is a disclosure radar for serious Korean retail investors: it watches your names, summarizes filings in Korean, flags anomalies, and turns evidence into DD memos. GraphRAG Ask remains the power-user layer for supply-chain and ownership questions.
 
-한국 리테일 투자자에게는 Fey·Seeking Alpha 수준의 진지한 리서치 도구가 없다. 네이버 증권은 광고+뉴스, 토스증권 인사이트는 단편적, 증권플러스는 가격 중심. **The Gongsi가 그 공백을 채운다.**
+한국 리테일 투자자에게는 공시를 매일 챙기는 사람을 위한 진지한 리서치 도구가 부족하다. 네이버 증권은 광고+뉴스, 토스증권 인사이트는 단편적, 증권플러스는 가격 중심. **The Gongsi는 관심종목의 중요한 공시를 놓치지 않게 하는 레이더**에서 출발한다.
 
 ## 우리가 믿는 것
 
 - **공시의 95%는 노이즈, 5%가 인생을 바꾼다.** 문제는 그 5%를 걸러낼 시간이 없다는 것.
 - 한국 기업 관계는 지분·공급망·인사로 얽힌 **그래프**다. SQL도 벡터 검색도 이걸 혼자 풀 수 없다.
-- **AI는 조언자가 아니라 독해기**다. 우리는 bull/bear 논리를 제공하지 목표가·매수추천을 제공하지 않는다.
+- **AI는 조언자가 아니라 독해기**다. 우리는 원문 근거와 bull/bear 체크포인트를 제공하지 목표가·매수추천을 제공하지 않는다.
 
 ## 북극성
 
@@ -26,20 +26,23 @@
 
 ## 5개 차별점
 
+- **관심종목 공시 레이더** — 내 종목의 최신 DART 공시, high/med 이상징후, 리뷰 상태를 한 큐로 정리.
 - **DART 공시 AI 분석** — 자동 한국어 요약 + 이상징후 severity(low/med/high) 플래그.
-- **GraphRAG 자연어 Q&A** — 공급망·경쟁사·인물 그래프 위 자연어 질의. Cypher 자동 생성.
 - **AI DD 메모** — 종목 → bull/bear/thesis 한국어 메모(공시+뉴스+실적 통합, 버전 히스토리).
+- **GraphRAG 자연어 Q&A** — 공급망·경쟁사·인물 그래프 위 자연어 질의. Cypher 자동 생성.
 - **공급망 그래프** — 41개 산업 범주 187 SUPPLIES 엣지. LLM extractor 가 매주 DART 공시 본문에서 신규 관계 자동 추출.
 - **지배구조 렌즈** *(v0.3.1)* — DART document.xml 본문을 LLM 이 읽어 최대주주·임원·법인 지분 자동 추출(Phase 2). 모기업·자회사 덴드로그램, 순환출자 DFS 감지, 관계 그래프(자체 force-directed physics, d3 없음). canonical name dedup + KOSPI 우선 fuzzy ticker 매칭으로 variant 이름도 통합.
 
-## 실데이터 (v0.3.1 / 2026-04-19)
+## 실데이터 (v0.3.1 / 2026-05-02)
 
 ```
-disclosures:       2,767 rows (since 2025-04-21, 일평균 7.6)
-earnings events:   Q1 2026 21건 (매출/영업익/순익 단위 정규화: 백만원 기준)
-calendar events:   27 upcoming (권리락·배당락·납입일·상장일, dedup 적용)
+disclosures:       40,680 rows (since 2025-04-21, 최근 7일 2,095)
+earnings events:   393 rows (Q1 2026 중심, 매출/영업익/순익 단위 정규화: 백만원 기준)
+calendar events:   D-7 기준 51 upcoming / future 454 (권리락·배당락·납입일·상장일, dedup 적용)
 supply chain:      187 SUPPLIES edges / 41 categories / 256 company 노드
-companies:         3,959 (KOSPI 836 + KOSDAQ 1,778 + 기타)
+companies:         3,963 (KOSPI + KOSDAQ + 기타)
+anomalies:         최근 7일 high/med 319건 / 누적 4,322건
+readiness:         100/100 poc_ready · data-quality pass
 governance:        major_shareholders · insiders · corporate_ownership 3 tables
                    + HOLDS_SHARES (Company→Company) edges on Neo4j
                    + 순환출자 DFS detection (max depth 5)
@@ -50,7 +53,7 @@ governance:        major_shareholders · insiders · corporate_ownership 3 table
 
 - **Backend:** FastAPI 0.115 · SQLAlchemy 2.0 async · PostgreSQL(Supabase) · Neo4j 5(AuraDB) · OpenDART REST · Anthropic Claude (BYOK 3-tier)
 - **Frontend:** Next.js 16 App Router · React 19 · Tailwind 4 · Recharts 3 · `loading.tsx` 스켈레톤 (`/c/[ticker]`·`/watchlist`·`/settings`)
-- **Infra:** Vercel Hobby · Fly.io Free (nrt) · GitHub Actions cron (매일 KST 06:00 DART 수집 + KST 08:00 잠정실적 + 매 10분 keepalive). 월 $0.
+- **Infra:** Vercel Hobby · Fly.io Free (nrt) · GitHub Actions cron (KST 10:17/14:17/18:17 DART 수집 + KST 08:00 잠정실적 + 매 10분 keepalive). 월 $0.
 - **알림:** Discord Embed(admin 글로벌 webhook, severity 이모지·종목명·DART 링크 포함) + user-level BYOK(telegram/slack/discord).
 
 ## 빠른 시작
@@ -89,8 +92,9 @@ cd backend && fly launch --no-deploy
 fly secrets set DART_API_KEY=... ANTHROPIC_API_KEY=... \
     NEO4J_URL=... NEO4J_USER=... NEO4J_PASSWORD=... \
     DATABASE_URL=... JWT_SECRET_KEY=... FIELD_ENCRYPTION_KEY=... \
-    ADMIN_JOBS_TOKEN=<랜덤> DISCORD_WEBHOOK_URL=<옵션>
+    AUTO_CREATE_TABLES=false ADMIN_JOBS_TOKEN=<랜덤> DISCORD_WEBHOOK_URL=<옵션>
 fly deploy
+# fly.toml release_command가 배포마다 `alembic upgrade head`를 실행
 
 # Frontend: Vercel (GitHub 연동 자동 배포)
 # NEXT_PUBLIC_API_URL=https://<fly-app>.fly.dev 만 Vercel 대시보드에 설정
@@ -114,6 +118,7 @@ thegongsi/
 ├── bench/                  # 20개 gold-query + recall/precision 러너
 ├── backend/
 │   ├── app/
+│   ├── alembic/                 # 운영 DB migration
 │   │   ├── routers/
 │   │   │   ├── admin_jobs.py      # cron 트리거 + graph_ping + 공급망 추출
 │   │   │   ├── earnings.py        # Q1 실적 (company JOIN for 종목명)
@@ -148,6 +153,7 @@ thegongsi/
 
 [LAUNCH.md](LAUNCH.md) — Day-0 배포 checklist · Show HN 체크리스트 · 30일 성공 지표.
 [CHANGELOG.md](CHANGELOG.md) — 변경 이력.
+[docs/INSTITUTIONAL_READINESS.md](docs/INSTITUTIONAL_READINESS.md) — VC/투자운용사 PoC 기준의 품질 평가 축 · 미흡점 · 개선 로드맵.
 
 ## 기여
 

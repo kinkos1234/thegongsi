@@ -16,7 +16,7 @@ import io
 import logging
 import re
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -383,7 +383,7 @@ async def extract_from_disclosures(ticker: str, limit: int = 6) -> dict:
     accepted_corps = [c for c in merged_corps if c.get("confidence", 0) >= 0.5]
     persons = merged_persons  # 호환: 아래 upsert 루프에서 accepted_ 만 사용
     corporates = merged_corps
-    as_of = datetime.utcnow().strftime("%Y-%m-%d")
+    as_of = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     # Neo4j 동기화 (Person/Company 관계)
     for p in accepted_persons:

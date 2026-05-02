@@ -20,6 +20,34 @@ from app.models.tables import (
 )
 
 
+def _dedupe_linked(rows: list[dict]) -> list[dict]:
+    """Collapse duplicate legal-entity links before they reach the UI.
+
+    Governance extraction may resolve the same Korean company name to an old or
+    alternate ticker. For investor-facing views, a duplicated name is more
+    damaging than a conservative omission, so keep the strongest stake per name.
+    """
+    by_key: dict[str, dict] = {}
+    for row in rows:
+        name = str(row.get("name") or "").strip().lower()
+        ticker = str(row.get("ticker") or "").strip()
+        key = name or ticker
+        if not key:
+            continue
+        prev = by_key.get(key)
+        if prev is None:
+            by_key[key] = row
+            continue
+        prev_stake = prev.get("stake_pct")
+        row_stake = row.get("stake_pct")
+        if row_stake is not None and (prev_stake is None or row_stake > prev_stake):
+            by_key[key] = row
+    return sorted(
+        by_key.values(),
+        key=lambda r: (r.get("stake_pct") is None, -(r.get("stake_pct") or 0), r.get("ticker") or ""),
+    )
+
+
 async def governance_snapshot(
     ticker: str, db: AsyncSession, shareholder_limit: int = 5, insider_limit: int = 8
 ) -> dict[str, Any]:
@@ -90,7 +118,7 @@ async def governance_snapshot(
         .order_by(CorporateOwnership.as_of.desc())
         .limit(10)
     )
-    parents = [
+    parents = _dedupe_linked([
         {
             "ticker": p.parent_ticker,
             "name": p.parent_name,
@@ -98,14 +126,14 @@ async def governance_snapshot(
             "as_of": p.as_of,
         }
         for p in parents_res.scalars().all()
-    ]
+    ])
     children_res = await db.execute(
         select(CorporateOwnership)
         .where(CorporateOwnership.parent_ticker == ticker)
         .order_by(CorporateOwnership.as_of.desc())
         .limit(10)
     )
-    children = [
+    children = _dedupe_linked([
         {
             "ticker": c.child_ticker,
             "name": c.child_name,
@@ -113,7 +141,7 @@ async def governance_snapshot(
             "as_of": c.as_of,
         }
         for c in children_res.scalars().all()
-    ]
+    ])
 
     # 회사명
     corp = (

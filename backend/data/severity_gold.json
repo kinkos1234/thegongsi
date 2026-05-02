@@ -1,0 +1,158 @@
+[
+  {
+    "id": "audit_opinion_denied",
+    "report_nm": "외부감사인의 감사의견거절",
+    "expected": "high",
+    "rationale": "감사의견거절은 상장폐지 및 거래정지 리스크와 직결된다."
+  },
+  {
+    "id": "delisting",
+    "report_nm": "주권상장폐지결정",
+    "expected": "high",
+    "rationale": "상장폐지는 투자자에게 직접적인 손실 가능성을 만든다."
+  },
+  {
+    "id": "embezzlement",
+    "report_nm": "횡령ㆍ배임혐의발생",
+    "expected": "high",
+    "rationale": "횡령·배임은 내부통제 및 재무 신뢰성 훼손 신호다."
+  },
+  {
+    "id": "rights_issue",
+    "report_nm": "주요사항보고서(유상증자결정)",
+    "expected": "high",
+    "rationale": "유상증자는 희석과 자금난 신호일 수 있어 고위험으로 본다."
+  },
+  {
+    "id": "convertible_bond",
+    "report_nm": "전환사채권발행결정",
+    "expected": "high",
+    "rationale": "전환사채 발행은 희석 및 자금조달 리스크가 있다."
+  },
+  {
+    "id": "lawsuit",
+    "report_nm": "소송등의제기ㆍ신청",
+    "expected": "high",
+    "rationale": "소송은 우발채무와 영업 불확실성을 만든다."
+  },
+  {
+    "id": "going_concern",
+    "report_nm": "계속기업 존속능력에 대한 불확실성 기재",
+    "expected": "high",
+    "rationale": "계속기업 불확실성은 재무 안정성과 상장 유지 리스크를 직접 건드린다."
+  },
+  {
+    "id": "rehabilitation",
+    "report_nm": "회생절차개시신청",
+    "expected": "high",
+    "rationale": "회생절차는 지급능력과 주주가치 훼손 가능성이 큰 사건이다."
+  },
+  {
+    "id": "audit_opinion_qualified",
+    "report_nm": "외부감사인의 감사의견한정",
+    "expected": "high",
+    "rationale": "감사의견 한정은 재무제표 신뢰성과 거래 리스크를 크게 낮춘다."
+  },
+  {
+    "id": "cb_correction",
+    "report_nm": "[기재정정]전환사채권발행결정",
+    "expected": "high",
+    "rationale": "전환사채 발행 및 정정은 조건 변화와 희석 가능성을 확인해야 한다."
+  },
+  {
+    "id": "major_shareholder",
+    "report_nm": "최대주주변경",
+    "expected": "med",
+    "rationale": "지배권 변화는 유의 이벤트지만 즉시 손실 이벤트는 아닐 수 있다."
+  },
+  {
+    "id": "merger",
+    "report_nm": "회사합병결정",
+    "expected": "med",
+    "rationale": "합병은 구조 변화 이벤트로 검토가 필요하다."
+  },
+  {
+    "id": "treasury_stock",
+    "report_nm": "자기주식취득결정",
+    "expected": "med",
+    "rationale": "자기주식 거래는 자본정책 이벤트다."
+  },
+  {
+    "id": "spin_off",
+    "report_nm": "회사분할결정",
+    "expected": "med",
+    "rationale": "분할은 사업·자산 구조 변화로 투자자가 검토해야 할 이벤트다."
+  },
+  {
+    "id": "stock_swap",
+    "report_nm": "주식교환ㆍ이전결정",
+    "expected": "med",
+    "rationale": "주식교환은 지분 구조와 주주 권리 변화 가능성이 있다."
+  },
+  {
+    "id": "bonus_issue",
+    "report_nm": "주요사항보고서(무상증자결정)",
+    "expected": "med",
+    "rationale": "무상증자는 자본정책과 유동성 이벤트로 후속 조건 확인이 필요하다."
+  },
+  {
+    "id": "tender_offer",
+    "report_nm": "공개매수신고서",
+    "expected": "med",
+    "rationale": "공개매수는 지배권과 유통주식 구조를 바꿀 수 있다."
+  },
+  {
+    "id": "material_report",
+    "report_nm": "주요사항보고서(타법인주식및출자증권양수결정)",
+    "expected": "med",
+    "rationale": "주요사항보고서는 투자·재무 구조 변화 가능성이 있어 검토 대상이다."
+  },
+  {
+    "id": "quarterly_report",
+    "report_nm": "분기보고서 2026.03",
+    "expected": "low",
+    "rationale": "정기보고서는 기본적으로 routine disclosure다."
+  },
+  {
+    "id": "annual_report",
+    "report_nm": "사업보고서 2025.12",
+    "expected": "low",
+    "rationale": "정기보고서는 이상징후 키워드가 없으면 낮은 심각도로 본다."
+  },
+  {
+    "id": "executive_change",
+    "report_nm": "대표이사변경",
+    "expected": "low",
+    "rationale": "대표이사 변경은 맥락에 따라 중요할 수 있으나 현재 룰셋에서는 중립으로 둔다."
+  },
+  {
+    "id": "ir_notice",
+    "report_nm": "기업설명회(IR)개최(안내공시)",
+    "expected": "low",
+    "rationale": "IR 개최 안내는 일반 커뮤니케이션 성격이 강하다."
+  },
+  {
+    "id": "shareholder_meeting_notice",
+    "report_nm": "주주총회소집공고",
+    "expected": "low",
+    "rationale": "정기적 주주총회 공고는 별도 위험 키워드가 없으면 routine으로 본다."
+  },
+  {
+    "id": "cash_dividend",
+    "report_nm": "현금ㆍ현물배당결정",
+    "expected": "low",
+    "rationale": "배당 결정은 주주환원 이벤트이며 현 룰셋에서는 이상징후가 아니다."
+  },
+  {
+    "id": "earnings_fair_disclosure",
+    "report_nm": "연결재무제표기준영업(잠정)실적(공정공시)",
+    "expected": "low",
+    "rationale": "잠정실적은 별도 수치 분석 전에는 제목만으로 위험 이벤트로 보지 않는다."
+  },
+  {
+    "id": "single_sales_contract",
+    "report_nm": "단일판매ㆍ공급계약체결",
+    "expected": "low",
+    "rationale": "공급계약 체결은 일반적으로 긍정·중립 이벤트이며 현 룰셋상 위험 키워드가 아니다."
+  }
+]

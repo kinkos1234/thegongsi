@@ -8,7 +8,6 @@ vs v1 (종목별 per-endpoint): 7,848 calls → v2: ~10-50 calls.
 """
 import asyncio
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -22,20 +21,9 @@ setup_script_logging()
 logger = logging.getLogger(__name__)
 
 
-def _to_asyncpg_dsn(url: str) -> str:
-    for p in ("postgresql+asyncpg://", "postgres+asyncpg://"):
-        if url.startswith(p):
-            return url.replace(p, "postgresql://", 1)
-    return url
-
-
 async def run(days: int):
     from app.services.calendar.ex_dates_v2 import scan_ex_dates_v2
-    from app.services.calendar.ex_dates import upsert_events
-
-    db_url = _to_asyncpg_dsn(os.environ.get("DATABASE_URL", ""))
-    if not db_url.startswith("postgres"):
-        logger.error("Postgres DB URL 필요"); sys.exit(1)
+    from app.services.calendar.upsert import upsert_calendar_events
 
     events = await scan_ex_dates_v2(days_back=days, concurrency=3)
     logger.info(f"총 {len(events)} events 추출")
@@ -44,13 +32,8 @@ async def run(days: int):
         logger.info("저장할 이벤트 없음 — 종료")
         return
 
-    import asyncpg
-    conn = await asyncpg.connect(db_url)
-    try:
-        written = await upsert_events(conn, events)
-        logger.info(f"upsert 완료: {written} rows")
-    finally:
-        await conn.close()
+    written = await upsert_calendar_events(events)
+    logger.info(f"upsert 완료: {written} rows")
 
 
 if __name__ == "__main__":

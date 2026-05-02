@@ -10,8 +10,9 @@ const TOKEN_KEY = "comad_stock_token";
 
 const LINKS = [
   { href: "/", label: "home" },
-  { href: "/ask", label: "ask" },
   { href: "/watchlist", label: "watchlist" },
+  { href: "/events", label: "events" },
+  { href: "/ask", label: "ask" },
   { href: "/settings", label: "settings" },
 ];
 
